@@ -2,9 +2,9 @@ import { Injectable } from '@angular/core';
 // FIX: Removed GenerateContentStreamResponse as it is not an exported member of @google/genai
 import { GoogleGenAI, GenerateContentResponse, Chat, Type } from "@google/genai";
 
-// This is a placeholder for the actual API key.
-// In a real application, this should be handled securely.
-const API_KEY = process.env.API_KEY;
+// Read the API key from the runtime configuration object injected via runtime-config.js
+// This makes the app environment-aware without using Node.js's process.env in the browser.
+const API_KEY = (window as any).runtimeConfig?.API_KEY;
 
 @Injectable({
   providedIn: 'root'
@@ -13,8 +13,8 @@ export class GeminiService {
   private ai: GoogleGenAI;
 
   constructor() {
-    if (!API_KEY) {
-      console.error("API_KEY environment variable not set.");
+    if (!API_KEY || API_KEY === 'YOUR_GEMINI_API_KEY_PLACEHOLDER') {
+      console.error("API_KEY not found or not set in runtime configuration.");
       // In a real app, you might want to throw an error or handle this differently.
     }
     this.ai = new GoogleGenAI({ apiKey: API_KEY! });
@@ -28,7 +28,7 @@ export class GeminiService {
       return 'AURA is very popular right now! Please wait a moment and try again.';
     }
     if (errorMessage.toLowerCase().includes('api key not valid')) {
-        return 'There seems to be an issue with the API key configuration. Please contact support.';
+        return 'There seems to be an issue with the API key configuration. Please check your deployment variables.';
     }
     return `Sorry, I encountered an error while ${context}. Please try again.`;
   }

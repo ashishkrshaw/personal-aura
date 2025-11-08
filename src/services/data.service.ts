@@ -24,9 +24,9 @@ export interface Reminder {
   notified: boolean;
 }
 
-// Backend URL is sourced from environment variables, with a fallback for local development.
-// This allows for flexible deployment configurations.
-const API_BASE_URL = process.env.AURA_BACKEND_URL || 'http://localhost:8082';
+// Backend URL is sourced from the runtime configuration, with a fallback for local development.
+// This allows for flexible deployment configurations without using process.env in the browser.
+const API_BASE_URL = (window as any).runtimeConfig?.AURA_BACKEND_URL || 'http://localhost:8082';
 
 @Injectable({
   providedIn: 'root'
@@ -35,7 +35,7 @@ export class DataService {
   private http = inject(HttpClient);
   private apiUrl = `${API_BASE_URL}/api`;
 
-  isMongoConfigured = signal(!!process.env.MONGO_URI);
+  isMongoConfigured = signal(!!(window as any).runtimeConfig?.MONGO_URI);
 
   // --- People Data ---
   getPeople(): Observable<Person[]> {

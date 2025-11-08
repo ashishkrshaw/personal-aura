@@ -31,6 +31,7 @@
       to { opacity: 1; transform: translateY(0); }
     }
   </style>
+  <script src="src/runtime-config.js"></script>
   <script>
     // Prevent Flash of Unstyled Content (FOUC) for dark mode
     if (localStorage.getItem('aura-theme') === 'dark' || (!('aura-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
