@@ -24,7 +24,6 @@ export class LiveConversationComponent implements OnDestroy {
   transcript = signal<TranscriptLine[]>([]);
   
   private chatHistory: ChatMessage[] = [];
-  private currentAudio: HTMLAudioElement | null = null;
   private isProcessingAudio = false;
   
   statusMessages: Record<ConversationState, string> = {
@@ -93,40 +92,25 @@ export class LiveConversationComponent implements OnDestroy {
     }
     
     this.conversationState.set('speaking');
-    this.stopSpeaking(); // Ensure no prior audio is playing
+    this.stopSpeaking();
 
-    const audioBase64 = await this.geminiService.generateSpeech(text);
-    if (audioBase64) {
-      const audioSrc = `data:audio/mp3;base64,${audioBase64}`;
-      this.currentAudio = new Audio(audioSrc);
-      
-      this.currentAudio.onended = () => {
-        this.currentAudio = null;
+    try {
+        await this.geminiService.generateSpeech(text);
+        // After speech is done (promise resolves), continue the loop.
         if (this.conversationState() !== 'idle') {
-          this.listen(); // Continue the conversation loop
+            this.listen();
         }
-      };
-      
-      this.currentAudio.play().catch(e => {
+    } catch (e) {
         console.error("Error playing audio:", e);
+        // Still try to continue the loop even on error.
         if (this.conversationState() !== 'idle') {
-          this.listen(); // Still try to continue the loop
+            this.listen();
         }
-      });
-    } else {
-      console.warn("TTS generation failed.");
-      if (this.conversationState() !== 'idle') {
-          this.listen(); // Continue loop even if TTS fails
-      }
     }
   }
 
   private stopSpeaking() {
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-      this.currentAudio.onended = null;
-      this.currentAudio = null;
-    }
+    this.geminiService.stopSpeech();
   }
   
   private stopConversationLoop() {

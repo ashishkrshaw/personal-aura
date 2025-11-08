@@ -8,7 +8,7 @@
 
   <div class="flex-grow flex flex-col items-center justify-center p-4">
     <button (click)="toggleConversation()" 
-      [class]="'w-40 h-40 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out text-white text-6xl shadow-2xl focus:outline-none focus:ring-4 ' + 
+      [class]="'w-40 h-40 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out text-white shadow-2xl focus:outline-none focus:ring-4 ' + 
         (conversationState() === 'idle' ? 'bg-purple-600 hover:bg-purple-700 focus:ring-purple-400' : '') +
         (conversationState() === 'listening' ? 'bg-red-500 animate-pulse focus:ring-red-300' : '') +
         (conversationState() === 'processing' ? 'bg-blue-500 cursor-not-allowed focus:ring-blue-300' : '') +
@@ -18,16 +18,22 @@
       
       @switch (conversationState()) {
         @case ('idle') {
-          <i class="fas fa-microphone-alt"></i>
+          <i class="fas fa-microphone-alt text-6xl"></i>
         }
         @case ('listening') {
-          <i class="fas fa-microphone-alt"></i>
+          <i class="fas fa-microphone-alt text-6xl"></i>
         }
         @case ('processing') {
-          <i class="fas fa-spinner fa-spin"></i>
+          <i class="fas fa-spinner fa-spin text-6xl"></i>
         }
         @case ('speaking') {
-          <i class="fas fa-wave-square"></i>
+          <div class="flex items-center justify-center gap-1.5 h-10">
+            <div class="w-2 bg-white rounded-full animate-wave" style="animation-delay: -0.4s;"></div>
+            <div class="w-2 bg-white rounded-full animate-wave" style="animation-delay: -0.2s;"></div>
+            <div class="w-2 bg-white rounded-full animate-wave"></div>
+            <div class="w-2 bg-white rounded-full animate-wave" style="animation-delay: 0.2s;"></div>
+            <div class="w-2 bg-white rounded-full animate-wave" style="animation-delay: 0.4s;"></div>
+          </div>
         }
       }
     </button>

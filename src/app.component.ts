@@ -12,8 +12,9 @@ import { ThemeService } from './services/theme.service';
 import { DataService } from './services/data.service';
 import { LoginComponent } from './components/login/login.component';
 import { LiveConversationComponent } from './components/live-conversation/live-conversation.component';
+import { PersonalResponderComponent } from './components/personal-responder/personal-responder.component';
 
-type Tab = 'coach' | 'navigate' | 'create' | 'career' | 'chat' | 'live';
+type Tab = 'responder' | 'coach' | 'navigate' | 'create' | 'career' | 'chat' | 'live';
 
 @Component({
   selector: 'app-root',
@@ -21,6 +22,7 @@ type Tab = 'coach' | 'navigate' | 'create' | 'career' | 'chat' | 'live';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
+    PersonalResponderComponent,
     PeopleCoachComponent,
     LocationHelperComponent,
     CreativeSuiteComponent,
@@ -36,11 +38,12 @@ export class AppComponent implements OnInit {
   dataService = inject(DataService);
   
   isAuthenticated = signal(localStorage.getItem('aura-auth-token') === 'true');
-  activeTab = signal<Tab>('coach');
+  activeTab = signal<Tab>('responder');
   isInitializing = signal(true);
   showSplash = signal(true);
 
   tabs: { id: Tab; icon: string; name: string }[] = [
+    { id: 'responder', icon: 'fa-reply-all', name: 'Responder' },
     { id: 'coach', icon: 'fa-users', name: 'Coach' },
     { id: 'navigate', icon: 'fa-map-location-dot', name: 'Navigate' },
     { id: 'create', icon: 'fa-wand-magic-sparkles', name: 'Create' },

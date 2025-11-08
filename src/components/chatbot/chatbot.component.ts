@@ -31,7 +31,6 @@ export class ChatbotComponent implements OnDestroy {
   thinkingMode = signal(false);
   useRealTimeData = signal(false);
   
-  private currentAudio: HTMLAudioElement | null = null;
   private readonly CHAT_HISTORY_KEY = 'aura-chat-history';
 
   constructor() {
@@ -189,23 +188,14 @@ export class ChatbotComponent implements OnDestroy {
     if (!text) return;
 
     try {
-      const audioBase64 = await this.geminiService.generateSpeech(text);
-      if (audioBase64) {
-        const audioSrc = `data:audio/mp3;base64,${audioBase64}`;
-        this.currentAudio = new Audio(audioSrc);
-        this.currentAudio.play();
-      }
+      await this.geminiService.generateSpeech(text);
     } catch (e) {
       console.error("Error playing speech", e);
     }
   }
 
   private stopSpeaking() {
-    if (this.currentAudio) {
-      this.currentAudio.pause();
-      this.currentAudio.currentTime = 0;
-      this.currentAudio = null;
-    }
+    this.geminiService.stopSpeech();
   }
 
   private loadChatHistory() {

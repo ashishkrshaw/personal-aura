@@ -1,0 +1,60 @@
+<div class="max-w-4xl mx-auto h-full flex flex-col">
+  <h2 class="text-2xl font-bold text-purple-500 dark:text-purple-300 mb-4">Personal Responder</h2>
+  
+  <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg space-y-4">
+    <div>
+      <label for="person-desc" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Who are you responding to?</label>
+      <input id="person-desc" [(ngModel)]="personDescription" type="text" placeholder="e.g., My boss, a close friend, my mom" class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+    </div>
+    
+    <div>
+      <label for="situation-desc" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">What's the situation?</label>
+      <textarea id="situation-desc" [(ngModel)]="situationDescription" placeholder="e.g., They asked me to work on a weekend, they gave me a gift I don't like..." class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-md border border-gray-300 dark:border-gray-600 h-24 focus:ring-purple-500 focus:border-purple-500"></textarea>
+    </div>
+
+    <div>
+      <label for="response-tone" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Desired Tone</label>
+      <select id="response-tone" [(ngModel)]="responseTone" class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+        @for(tone of tones; track tone) {
+          <option [value]="tone">{{ tone }}</option>
+        }
+      </select>
+    </div>
+
+    <button (click)="generateResponse()" [disabled]="isLoading()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center disabled:bg-purple-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed">
+      @if (isLoading()) {
+        <i class="fas fa-spinner fa-spin mr-2"></i>
+        <span>Generating Response...</span>
+      } @else {
+        <i class="fas fa-magic-wand-sparkles mr-2"></i>
+        <span>Generate Response</span>
+      }
+    </button>
+  </div>
+
+  @if (error()) {
+    <div class="mt-6 bg-red-100 dark:bg-red-900/50 border border-red-300 dark:border-red-700 text-red-800 dark:text-red-300 p-4 rounded-lg">
+      <p>{{ error() }}</p>
+    </div>
+  }
+
+  @if (generatedResponse()) {
+    <div class="mt-6 bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg flex-grow flex flex-col">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-xl font-semibold text-purple-600 dark:text-purple-300">Suggested Response</h3>
+        <button (click)="isSpeaking() ? stopSpeaking() : speakResponse()" [disabled]="isLoading()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center justify-center disabled:bg-blue-300 dark:disabled:bg-gray-500">
+          @if (isSpeaking()) {
+            <i class="fas fa-stop-circle mr-2"></i>
+            <span>Stop</span>
+          } @else {
+            <i class="fas fa-volume-up mr-2"></i>
+            <span>Read Aloud</span>
+          }
+        </button>
+      </div>
+      <div class="flex-grow bg-white dark:bg-gray-900/50 p-4 rounded-md overflow-y-auto">
+        <p class="whitespace-pre-wrap text-gray-700 dark:text-gray-200">{{ generatedResponse() }}</p>
+      </div>
+    </div>
+  }
+</div>

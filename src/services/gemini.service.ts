@@ -1,10 +1,10 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
 import {
   GoogleGenAI,
   Type
 } from '@google/genai';
+import { firstValueFrom } from 'rxjs';
 
 // Interfaces for type consistency across components
 export interface CoachChatMessage {
@@ -35,6 +35,7 @@ export class GeminiService {
   private genAI: GoogleGenAI;
   // FIX: API Key must be read from process.env.API_KEY as per guidelines.
   private readonly AURA_API_KEY = process.env.API_KEY;
+  private currentAudio: HTMLAudioElement | null = null;
 
   constructor() {
     if (!this.AURA_API_KEY) {
@@ -186,16 +187,67 @@ export class GeminiService {
     }
   }
 
-  // For TTS, using a hypothetical backend endpoint
-  async generateSpeech(text: string): Promise<string | null> {
+  // For TTS, using the gemini-2.5-flash-preview-tts model
+  async generateSpeech(text: string): Promise<void> {
+    this.stopSpeech(); // Stop any currently playing audio
+
+    // This uses a REST endpoint for the preview TTS model, as official SDK support may not be available.
+    // The structure is based on standard Google Cloud API patterns.
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:synthesizeSpeech?key=${this.AURA_API_KEY}`;
+    const body = {
+      "input": { "text": text },
+      "voice": { "languageCode": "en-US" },
+      "audioConfig": { "audioEncoding": "MP3" }
+    };
+    
     try {
       const response = await firstValueFrom(
-        this.http.post<{ audioContent: string }>(`${API_BASE_URL}/api/tts`, { text })
+        this.http.post<{ audioContent: string }>(url, body)
       );
-      return response.audioContent;
+      
+      if (!response || !response.audioContent) {
+        throw new Error("API returned no audio content.");
+      }
+
+      return new Promise((resolve, reject) => {
+        this.currentAudio = new Audio(`data:audio/mp3;base64,${response.audioContent}`);
+        this.currentAudio.play().catch(reject);
+        this.currentAudio.onended = () => {
+          this.currentAudio = null;
+          resolve();
+        };
+        this.currentAudio.onerror = (e) => {
+          this.currentAudio = null;
+          reject(e);
+        };
+      });
+
     } catch (error) {
-      console.error('Error generating speech:', error);
-      return null;
+      console.error('Gemini TTS Error:', error);
+      // Fallback to browser's built-in speech synthesis
+      console.warn('Falling back to browser speech synthesis.');
+      return new Promise((resolve, reject) => {
+          if (typeof window.speechSynthesis === 'undefined') {
+              return reject(new Error('Browser does not support Speech Synthesis.'));
+          }
+          window.speechSynthesis.cancel();
+          const utter = new SpeechSynthesisUtterance(text);
+          utter.onend = () => resolve();
+          utter.onerror = (e) => reject(e);
+          window.speechSynthesis.speak(utter);
+      });
+    }
+  }
+
+  // Stops any playing audio, whether from the Gemini API or the browser's fallback.
+  stopSpeech() {
+    if (this.currentAudio) {
+      this.currentAudio.pause();
+      this.currentAudio.currentTime = 0;
+      this.currentAudio = null;
+    }
+    if (typeof window.speechSynthesis !== 'undefined') {
+        window.speechSynthesis.cancel();
     }
   }
 
@@ -251,7 +303,7 @@ export class GeminiService {
           model: 'gemini-2.5-flash',
           contents: contents,
           config: {
-            systemInstruction: 'You are AURA, having a live, spoken conversation. Be concise and natural.',
+            systemInstruction: 'You are AURA, a warm and friendly AI companion. You are having a live, spoken conversation with your human friend. Keep your responses conversational, natural, and not too long. Listen carefully and respond with empathy and personality. Your voice should be calming and cheerful.',
           },
         });
         return response.text;
