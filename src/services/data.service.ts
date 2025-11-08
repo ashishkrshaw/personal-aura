@@ -1,7 +1,9 @@
+
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { AppConfig, APP_CONFIG } from '../app.config';
 
 // Data models
 export interface Person {
@@ -29,15 +31,16 @@ export interface Reminder {
 })
 export class DataService {
   private http = inject(HttpClient);
+  private config = inject<AppConfig>(APP_CONFIG);
   private apiUrl: string;
 
   isMongoConfigured = signal(false);
 
   constructor() {
-    // Read config at INSTANTIATION time, not module load time.
+    // Read config via dependency injection.
     // This is the definitive fix for the blank screen race condition on deployment.
-    const backendUrl = (window as any).runtimeConfig?.AURA_BACKEND_URL;
-    const mongoUri = (window as any).runtimeConfig?.MONGO_URI;
+    const backendUrl = this.config.AURA_BACKEND_URL;
+    const mongoUri = this.config.MONGO_URI;
 
     this.apiUrl = `${backendUrl || 'http://localhost:8082'}/api`;
     this.isMongoConfigured.set(!!mongoUri);

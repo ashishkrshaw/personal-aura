@@ -1,18 +1,21 @@
-import { Injectable } from '@angular/core';
+
+import { Injectable, inject } from '@angular/core';
 // FIX: Removed GenerateContentStreamResponse as it is not an exported member of @google/genai
 import { GoogleGenAI, GenerateContentResponse, Chat, Type } from "@google/genai";
+import { APP_CONFIG, AppConfig } from '../app.config';
 
 @Injectable({
   providedIn: 'root'
 })
 export class GeminiService {
+  private config = inject<AppConfig>(APP_CONFIG);
   private ai: GoogleGenAI;
-  private apiKey: string | undefined;
+  private apiKey: string;
 
   constructor() {
-    // Read the API key from the runtime configuration at INSTANTIATION time, not module load time.
+    // Get the API key from the injected configuration.
     // This is the definitive fix for the blank screen race condition on deployment.
-    this.apiKey = (window as any).runtimeConfig?.API_KEY;
+    this.apiKey = this.config.API_KEY;
 
     if (!this.apiKey || this.apiKey === 'YOUR_GEMINI_API_KEY_PLACEHOLDER') {
       console.error("API_KEY not found or not set in runtime configuration.");

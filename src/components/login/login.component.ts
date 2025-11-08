@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, output, signal } from '@angular/core';
+
+import { ChangeDetectionStrategy, Component, output, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { APP_CONFIG, AppConfig } from '../../app.config';
 
 @Component({
   selector: 'app-login',
@@ -11,6 +13,7 @@ import { FormsModule } from '@angular/forms';
 })
 export class LoginComponent {
   loginSuccess = output<void>();
+  private config = inject<AppConfig>(APP_CONFIG);
 
   username = signal('');
   password = signal('');
@@ -21,9 +24,9 @@ export class LoginComponent {
   private correctPassword: string;
 
   constructor() {
-    // Fetch credentials at component instantiation time to avoid any race conditions.
-    this.correctUsername = (window as any).runtimeConfig?.AURA_USERNAME || 'aura';
-    this.correctPassword = (window as any).runtimeConfig?.AURA_PASSWORD || 'password';
+    // Fetch credentials from the injected configuration to avoid race conditions.
+    this.correctUsername = this.config.AURA_USERNAME || 'aura';
+    this.correctPassword = this.config.AURA_PASSWORD || 'password';
   }
 
   login() {
