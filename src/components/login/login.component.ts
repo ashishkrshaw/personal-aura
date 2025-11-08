@@ -17,10 +17,14 @@ export class LoginComponent {
   error = signal<string | null>(null);
   isLoading = signal(false);
 
-  // Fetch credentials from the runtime configuration object injected by the build process.
-  // This replaces process.env, which is not available in the browser.
-  private correctUsername = (window as any).runtimeConfig?.AURA_USERNAME || 'aura';
-  private correctPassword = (window as any).runtimeConfig?.AURA_PASSWORD || 'password';
+  private correctUsername: string;
+  private correctPassword: string;
+
+  constructor() {
+    // Fetch credentials at component instantiation time to avoid any race conditions.
+    this.correctUsername = (window as any).runtimeConfig?.AURA_USERNAME || 'aura';
+    this.correctPassword = (window as any).runtimeConfig?.AURA_PASSWORD || 'password';
+  }
 
   login() {
     this.isLoading.set(true);

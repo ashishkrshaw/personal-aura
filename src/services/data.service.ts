@@ -24,18 +24,24 @@ export interface Reminder {
   notified: boolean;
 }
 
-// Backend URL is sourced from the runtime configuration, with a fallback for local development.
-// This allows for flexible deployment configurations without using process.env in the browser.
-const API_BASE_URL = (window as any).runtimeConfig?.AURA_BACKEND_URL || 'http://localhost:8082';
-
 @Injectable({
   providedIn: 'root'
 })
 export class DataService {
   private http = inject(HttpClient);
-  private apiUrl = `${API_BASE_URL}/api`;
+  private apiUrl: string;
 
-  isMongoConfigured = signal(!!(window as any).runtimeConfig?.MONGO_URI);
+  isMongoConfigured = signal(false);
+
+  constructor() {
+    // Read config at INSTANTIATION time, not module load time.
+    // This is the definitive fix for the blank screen race condition on deployment.
+    const backendUrl = (window as any).runtimeConfig?.AURA_BACKEND_URL;
+    const mongoUri = (window as any).runtimeConfig?.MONGO_URI;
+
+    this.apiUrl = `${backendUrl || 'http://localhost:8082'}/api`;
+    this.isMongoConfigured.set(!!mongoUri);
+  }
 
   // --- People Data ---
   getPeople(): Observable<Person[]> {
