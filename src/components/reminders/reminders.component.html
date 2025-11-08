@@ -1,0 +1,88 @@
+<div class="max-w-4xl mx-auto relative h-full">
+  <h2 class="text-2xl font-bold text-purple-500 dark:text-purple-300 mb-4">Reminders</h2>
+
+  <!-- Notification Permission Block -->
+  @if (notificationPermission() !== 'granted') {
+    <div class="bg-blue-50 dark:bg-gray-700/50 border border-blue-200 dark:border-gray-700 p-4 rounded-lg mb-6 flex items-center justify-between">
+      @if (notificationPermission() === 'default') {
+        <div>
+          <h4 class="font-semibold text-blue-800 dark:text-blue-300">Enable Desktop Notifications</h4>
+          <p class="text-sm text-blue-600 dark:text-blue-400">Get reminders even when the app is in the background.</p>
+        </div>
+        <button (click)="requestNotificationPermission()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-md transition-colors">
+          Enable
+        </button>
+      }
+      @if (notificationPermission() === 'denied') {
+        <p class="text-sm text-red-600 dark:text-red-400"><i class="fas fa-exclamation-triangle mr-2"></i>Notifications are blocked. You'll need to enable them in your browser settings.</p>
+      }
+    </div>
+  }
+
+  <!-- Add Reminder Form -->
+  <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+    <h3 class="text-xl font-semibold mb-4">Add a New Reminder</h3>
+    <form (submit)="addReminder()" class="space-y-4">
+      <div>
+        <label for="reminder-text" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">What do you want to be reminded of?</label>
+        <input id="reminder-text" [(ngModel)]="newReminderText" name="reminder-text" type="text" placeholder="e.g., Call Mom" required class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-2 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+      </div>
+      <div>
+        <label for="reminder-date" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">When?</label>
+        <input id="reminder-date" [(ngModel)]="newReminderDate" name="reminder-date" type="datetime-local" required class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-2 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+      </div>
+      <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition-colors flex items-center justify-center">
+        <i class="fas fa-plus mr-2"></i>
+        <span>Add Reminder</span>
+      </button>
+    </form>
+  </div>
+
+  <!-- Reminder List -->
+  <div class="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-lg">
+    <h3 class="text-xl font-semibold mb-4">Upcoming Reminders</h3>
+    <div class="space-y-3">
+      @if(reminders().length === 0) {
+        <p class="text-center text-gray-500 dark:text-gray-400 py-4">No reminders set yet.</p>
+      } @else {
+        @for(reminder of reminders(); track reminder.id) {
+          <div class="flex items-center justify-between bg-white dark:bg-gray-700 p-3 rounded-lg animate-fade-in shadow-sm border border-gray-200 dark:border-gray-600" [class.opacity-50]="isPastDue(reminder)">
+            <div class="flex items-center gap-4">
+               <div>
+                 <p class="font-semibold text-gray-900 dark:text-gray-100">{{ reminder.text }}</p>
+                 <p class="text-sm text-purple-600 dark:text-purple-300 mt-1">
+                    <i class="fas fa-clock mr-1"></i>
+                    {{ reminder.due | date:'short' }}
+                 </p>
+               </div>
+            </div>
+            <button (click)="deleteReminder(reminder.id)" class="text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        }
+      }
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  @if (activeNotification(); as notification) {
+    <div class="absolute bottom-4 right-4 w-full max-w-sm bg-purple-600 text-white p-4 rounded-lg shadow-2xl animate-fade-in">
+        <div class="flex items-start">
+            <div class="flex-shrink-0 pt-0.5">
+                <i class="fas fa-bell fa-lg"></i>
+            </div>
+            <div class="ml-3 w-0 flex-1">
+                <p class="text-sm font-semibold">Reminder!</p>
+                <p class="mt-1 text-sm">{{ notification.text }}</p>
+            </div>
+            <div class="ml-4 flex-shrink-0 flex">
+                <button (click)="dismissNotification()" class="inline-flex text-purple-100 hover:text-white">
+                    <span class="sr-only">Close</span>
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+  }
+</div>

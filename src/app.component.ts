@@ -1,0 +1,86 @@
+import { ChangeDetectionStrategy, Component, signal, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+
+import { PeopleCoachComponent } from './components/people-coach/people-coach.component';
+import { LocationHelperComponent } from './components/location-helper/location-helper.component';
+import { CreativeSuiteComponent } from './components/creative-suite/creative-suite.component';
+import { CareerAssistantComponent } from './components/career-assistant/career-assistant.component';
+import { ChatbotComponent } from './components/chatbot/chatbot.component';
+import { FinanceManagerComponent } from './components/finance-manager/finance-manager.component';
+import { RemindersComponent } from './components/reminders/reminders.component';
+import { StudyBuddyComponent } from './components/study-buddy/study-buddy.component';
+import { GeminiService } from './services/gemini.service';
+import { AudioService } from './services/audio.service';
+import { ThemeService } from './services/theme.service';
+import { DataService } from './services/data.service';
+import { LoginComponent } from './components/login/login.component';
+import { LiveConversationComponent } from './components/live-conversation/live-conversation.component';
+
+type Tab = 'coach' | 'navigate' | 'create' | 'finance' | 'career' | 'chat' | 'reminders' | 'study' | 'live';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [
+    CommonModule,
+    PeopleCoachComponent,
+    LocationHelperComponent,
+    CreativeSuiteComponent,
+    CareerAssistantComponent,
+    ChatbotComponent,
+    FinanceManagerComponent,
+    RemindersComponent,
+    StudyBuddyComponent,
+    LoginComponent,
+    LiveConversationComponent,
+  ],
+  providers: [GeminiService, AudioService, ThemeService, DataService]
+})
+export class AppComponent implements OnInit {
+  themeService = inject(ThemeService);
+  dataService = inject(DataService);
+  
+  isAuthenticated = signal(false);
+  activeTab = signal<Tab>('coach');
+  isInitializing = signal(true);
+  showSplash = signal(true);
+
+  tabs: { id: Tab; icon: string; name: string }[] = [
+    { id: 'coach', icon: 'fa-users', name: 'Coach' },
+    { id: 'navigate', icon: 'fa-map-location-dot', name: 'Navigate' },
+    { id: 'finance', icon: 'fa-wallet', name: 'Finance' },
+    { id: 'reminders', icon: 'fa-bell', name: 'Reminders' },
+    { id: 'study', icon: 'fa-book-open-reader', name: 'Study' },
+    { id: 'career', icon: 'fa-briefcase', name: 'Career' },
+    { id: 'create', icon: 'fa-wand-magic-sparkles', name: 'Create' },
+    { id: 'chat', icon: 'fa-comments', name: 'Chat' },
+    { id: 'live', icon: 'fa-headset', name: 'Live' },
+  ];
+
+  ngOnInit(): void {
+    if (localStorage.getItem('aura-auth-token') === 'true') {
+      this.isAuthenticated.set(true);
+    }
+
+    setTimeout(() => {
+      this.isInitializing.set(false);
+      // If not authenticated, splash screen will be replaced by login, so no need to hide it
+      if(this.isAuthenticated()) {
+        setTimeout(() => this.showSplash.set(false), 500);
+      }
+    }, 2000);
+  }
+
+  handleLoginSuccess() {
+    this.isAuthenticated.set(true);
+    localStorage.setItem('aura-auth-token', 'true');
+    // Hide splash immediately after successful login
+    this.isInitializing.set(false);
+    this.showSplash.set(false);
+  }
+
+  selectTab(tab: Tab) {
+    this.activeTab.set(tab);
+  }
+}

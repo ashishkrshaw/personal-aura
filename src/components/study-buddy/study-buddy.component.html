@@ -1,0 +1,86 @@
+<div class="max-w-6xl mx-auto">
+  <h2 class="text-2xl font-bold text-purple-500 dark:text-purple-300 mb-4">Study Buddy</h2>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Left Panel: Study Material Input -->
+    <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+      <h3 class="text-xl font-semibold mb-3">Your Study Material</h3>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Paste your text below or upload a .txt file.</p>
+      <textarea 
+        [(ngModel)]="studyMaterial"
+        placeholder="Paste your case study, lecture notes, or article here..." 
+        class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-md border border-gray-300 dark:border-gray-600 h-96 focus:ring-purple-500 focus:border-purple-500 font-mono text-sm"></textarea>
+      <label class="mt-3 inline-block text-sm text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 cursor-pointer">
+        <i class="fas fa-upload mr-1"></i> Upload .txt file
+        <input type="file" class="hidden" (change)="handleFileUpload($event)" accept=".txt">
+      </label>
+    </div>
+
+    <!-- Right Panel: Interaction -->
+    <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg flex flex-col">
+      <h3 class="text-xl font-semibold mb-3">Get Assistance</h3>
+      
+      <div class="flex-grow space-y-4">
+        <div>
+          <label for="user-query" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Your Question or Request</label>
+          <input 
+            id="user-query"
+            [(ngModel)]="userQuery" 
+            (keyup.enter)="getHelp()"
+            type="text" 
+            placeholder="e.g., Explain the main concept in simple terms" 
+            class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+        </div>
+        
+        <div class="flex items-center justify-between bg-gray-100 dark:bg-gray-700/50 p-3 rounded-lg">
+           <label for="real-time-toggle" class="flex flex-col">
+             <span class="font-medium text-gray-700 dark:text-gray-200">Use Real-Time Data</span>
+             <span class="text-xs text-gray-500 dark:text-gray-400">Uses Google Search for up-to-date info.</span>
+           </label>
+           <div class="relative inline-flex items-center cursor-pointer">
+             <input type="checkbox" id="real-time-toggle" [(ngModel)]="useRealTimeData" class="sr-only peer">
+             <div class="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-purple-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+           </div>
+        </div>
+
+        <div class="flex gap-2">
+          <button (click)="getHelp()" [disabled]="isLoading()" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center disabled:bg-purple-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed">
+            <i class="fas fa-question-circle mr-2"></i> Get Help
+          </button>
+          <button (click)="generateScenarios()" [disabled]="isLoading()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center disabled:bg-blue-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed">
+            <i class="fas fa-lightbulb mr-2"></i> Generate Scenarios
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4">
+        <h4 class="text-lg font-semibold mb-2">AURA's Response</h4>
+        @if (isLoading()) {
+          <div class="flex items-center justify-center p-6">
+            <i class="fas fa-spinner fa-spin fa-2x text-purple-500"></i>
+          </div>
+        } @else if (error()) {
+          <p class="text-red-500 dark:text-red-400">{{ error() }}</p>
+        } @else if (response().text) {
+          <div class="p-4 bg-gray-100 dark:bg-gray-900/50 rounded-lg prose prose-invert max-w-none prose-pre:bg-transparent dark:prose-pre:bg-transparent prose-p:text-gray-800 dark:prose-p:text-gray-200 max-h-64 overflow-y-auto">
+            <pre class="whitespace-pre-wrap font-sans">{{ response().text }}</pre>
+          </div>
+          @if (response().sources.length > 0) {
+            <div class="mt-4">
+              <h5 class="font-semibold text-sm mb-2">Sources from Google Search:</h5>
+              <div class="space-y-2">
+                @for(source of response().sources; track source.web.uri) {
+                  <a [href]="source.web.uri" target="_blank" class="block text-xs text-purple-600 dark:text-purple-400 hover:underline truncate" [title]="source.web.title">
+                    {{ source.web.title }}
+                  </a>
+                }
+              </div>
+            </div>
+          }
+        } @else {
+          <p class="text-center text-gray-500 dark:text-gray-400 py-6">Your study assistance will appear here.</p>
+        }
+      </div>
+    </div>
+  </div>
+</div>

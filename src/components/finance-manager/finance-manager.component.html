@@ -1,0 +1,124 @@
+<div class="max-w-4xl mx-auto">
+  <h2 class="text-2xl font-bold text-purple-500 dark:text-purple-300 mb-4">Finance Coach</h2>
+
+  <!-- Add Expense Form -->
+  <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+    <h3 class="text-xl font-semibold mb-4">Log a New Expense</h3>
+    
+    <!-- Receipt Scanner -->
+    <div class="bg-purple-50 dark:bg-gray-700/50 border border-purple-200 dark:border-gray-700 p-4 rounded-lg mb-6">
+      <div class="flex flex-col sm:flex-row gap-4 items-center">
+        <div class="flex-shrink-0">
+          @if(receiptFile()) {
+            <img [src]="receiptFile()?.preview" alt="Receipt preview" class="w-20 h-20 object-cover rounded-md shadow-md">
+          } @else {
+            <div class="w-20 h-20 bg-gray-200 dark:bg-gray-600 rounded-md flex items-center justify-center">
+              <i class="fas fa-receipt text-3xl text-gray-400 dark:text-gray-500"></i>
+            </div>
+          }
+        </div>
+        <div class="flex-grow text-center sm:text-left">
+          <h4 class="font-semibold">Scan a Receipt</h4>
+          <p class="text-sm text-gray-500 dark:text-gray-400">Upload an image and let AI fill in the details.</p>
+          <div class="mt-2 flex gap-2 justify-center sm:justify-start">
+             <label class="px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-md shadow-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-500 transition-colors">
+                <i class="fas fa-upload mr-2"></i>
+                <span>{{ receiptFile() ? 'Change' : 'Upload' }}</span>
+                <input type="file" class="hidden" (change)="onReceiptFileSelected($event)" accept="image/*">
+             </label>
+             @if(receiptFile()) {
+                <button (click)="analyzeReceipt()" [disabled]="isAnalyzingReceipt()" class="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md shadow-sm hover:bg-purple-700 disabled:bg-purple-400 dark:disabled:bg-gray-600 transition-colors flex items-center">
+                  @if(isAnalyzingReceipt()) {
+                    <i class="fas fa-spinner fa-spin mr-2"></i>
+                    <span>Analyzing...</span>
+                  } @else {
+                    <i class="fas fa-magic-wand-sparkles mr-2"></i>
+                    <span>Analyze</span>
+                  }
+                </button>
+             }
+          </div>
+        </div>
+      </div>
+      @if (receiptError()) {
+        <p class="text-xs text-red-600 dark:text-red-400 mt-2 text-center sm:text-left sm:ml-24">{{ receiptError() }}</p>
+      }
+    </div>
+
+    <form (submit)="addExpense()" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+      <div class="lg:col-span-2">
+        <label for="description" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Description</label>
+        <input id="description" [(ngModel)]="newExpense().description" name="description" type="text" placeholder="e.g., Coffee with a friend" required class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-2 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+      </div>
+      <div>
+        <label for="amount" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Amount</label>
+        <input id="amount" [(ngModel)]="newExpense().amount" name="amount" type="number" placeholder="0.00" required class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-2 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+      </div>
+      <div>
+        <label for="category" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Category</label>
+        <select id="category" [(ngModel)]="newExpense().category" name="category" class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-2 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+          @for(cat of expenseCategories; track cat) {
+            <option [value]="cat">{{cat}}</option>
+          }
+        </select>
+      </div>
+       <div class="lg:col-span-3">
+        <label for="date" class="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-1">Date</label>
+        <input id="date" [(ngModel)]="newExpense().date" name="date" type="date" required class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-2 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+      </div>
+      <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition-colors w-full">Add Expense</button>
+    </form>
+  </div>
+
+  <!-- Analysis Section -->
+  <div class="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+      <h3 class="text-xl font-semibold mb-2">AI Spending Analysis</h3>
+      <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">Get insights on your spending habits from AURA.</p>
+      <button (click)="analyzeSpending()" [disabled]="isLoadingAnalysis()" class="w-full bg-purple-600/80 hover:bg-purple-600 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center disabled:bg-purple-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed">
+        @if (isLoadingAnalysis()) {
+          <i class="fas fa-spinner fa-spin mr-2"></i>
+          <span>Analyzing Your Finances...</span>
+        } @else {
+          <i class="fas fa-chart-pie mr-2"></i>
+          <span>Analyze My Spending</span>
+        }
+      </button>
+
+      @if (analysisResult()) {
+        <div class="mt-4 p-4 bg-gray-100 dark:bg-gray-900/50 rounded-lg prose prose-invert max-w-none prose-pre:bg-transparent dark:prose-pre:bg-transparent prose-p:text-gray-800 dark:prose-p:text-gray-200">
+          <pre class="whitespace-pre-wrap font-sans">{{ analysisResult() }}</pre>
+        </div>
+      }
+  </div>
+
+  <!-- Expense List -->
+  <div class="bg-gray-50 dark:bg-gray-800/50 p-6 rounded-lg">
+    <h3 class="text-xl font-semibold mb-4">Recent Expenses</h3>
+    <div class="space-y-3">
+      @if(expenses().length === 0) {
+        <p class="text-center text-gray-500 dark:text-gray-400 py-4">No expenses logged yet.</p>
+      } @else {
+        @for(expense of expenses(); track expense.id) {
+          <div class="flex items-center justify-between bg-white dark:bg-gray-700 p-3 rounded-lg animate-fade-in shadow-sm border border-gray-200 dark:border-gray-600">
+            <div class="flex items-center gap-4">
+               <div class="text-xs text-center text-gray-500 dark:text-gray-400 w-12">
+                  <span class="font-bold text-sm text-gray-800 dark:text-gray-200">{{ expense.date | slice:5:7 }}/{{ expense.date | slice:8:10 }}</span>
+                  <span class="block">{{ expense.date | slice:0:4 }}</span>
+               </div>
+               <div>
+                 <p class="font-semibold text-gray-900 dark:text-gray-100">{{ expense.description }}</p>
+                 <p class="text-xs text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded-full inline-block mt-1">{{ expense.category }}</p>
+               </div>
+            </div>
+            <div class="flex items-center gap-4">
+              <span class="font-bold text-lg text-green-600 dark:text-green-400">${{ expense.amount.toFixed(2) }}</span>
+              <button (click)="deleteExpense(expense.id)" class="text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        }
+      }
+    </div>
+  </div>
+</div>

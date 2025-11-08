@@ -1,0 +1,51 @@
+<div class.="h-full flex flex-col max-w-4xl mx-auto">
+  <div class="text-center p-4 border-b border-gray-200 dark:border-gray-700">
+    <h2 class="text-2xl font-bold text-purple-500 dark:text-purple-300">Live Conversation</h2>
+    <p class="text-gray-500 dark:text-gray-400 min-h-[1.5rem] transition-all">
+      {{ statusMessages[conversationState()] }}
+    </p>
+  </div>
+
+  <div class="flex-grow flex flex-col items-center justify-center p-4">
+    <button (click)="toggleConversation()" 
+      [class]="'w-40 h-40 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out text-white text-6xl shadow-2xl focus:outline-none focus:ring-4 ' + 
+        (conversationState() === 'idle' ? 'bg-purple-600 hover:bg-purple-700 focus:ring-purple-400' : '') +
+        (conversationState() === 'listening' ? 'bg-red-500 animate-pulse focus:ring-red-300' : '') +
+        (conversationState() === 'processing' ? 'bg-blue-500 cursor-not-allowed focus:ring-blue-300' : '') +
+        (conversationState() === 'speaking' ? 'bg-green-500 focus:ring-green-300' : '')
+      "
+      [disabled]="conversationState() === 'processing'">
+      
+      @switch (conversationState()) {
+        @case ('idle') {
+          <i class="fas fa-microphone-alt"></i>
+        }
+        @case ('listening') {
+          <i class="fas fa-microphone-alt"></i>
+        }
+        @case ('processing') {
+          <i class="fas fa-spinner fa-spin"></i>
+        }
+        @case ('speaking') {
+          <i class="fas fa-wave-square"></i>
+        }
+      }
+    </button>
+  </div>
+
+  <div class="flex-shrink-0 h-1/2 bg-gray-50 dark:bg-gray-800/50 rounded-t-lg p-4">
+    <h3 class="font-semibold mb-2">Transcript</h3>
+    <div class="h-full overflow-y-auto space-y-4">
+      @if (transcript().length === 0) {
+        <p class="text-center text-gray-400 dark:text-gray-500 pt-8">Your conversation will appear here.</p>
+      }
+      @for(line of transcript(); track $index) {
+        <div [class]="'flex ' + (line.speaker === 'user' ? 'justify-end' : 'justify-start')">
+          <div [class]="'max-w-lg p-3 rounded-2xl ' + (line.speaker === 'user' ? 'bg-purple-600 text-white rounded-br-none' : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none shadow-sm')">
+            <p [innerHTML]="line.text || '...'"></p>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</div>

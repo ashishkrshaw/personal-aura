@@ -1,0 +1,145 @@
+<div class="h-full flex flex-col">
+  @if(isAuthenticated()) {
+    @if (!selectedPerson()) {
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold text-purple-500 dark:text-purple-300">People</h2>
+        <button (click)="showAddPersonForm.set(true)" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+          <i class="fas fa-plus mr-2"></i>Add Person
+        </button>
+      </div>
+
+      @if (showAddPersonForm()) {
+        <div class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg mb-4 shadow-lg animate-fade-in">
+          <h3 class="text-xl font-semibold mb-3">New Person</h3>
+          <div class="space-y-3">
+            <input [(ngModel)]="newPerson().name" type="text" placeholder="Name" class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-2 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+            <input [(ngModel)]="newPerson().relationship" type="text" placeholder="Relationship (e.g., Mother, Friend)" class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-2 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+            <textarea [(ngModel)]="newPerson().details" placeholder="Key details, personality traits, history..." class="w-full bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-2 rounded-md border border-gray-300 dark:border-gray-600 h-24 focus:ring-purple-500 focus:border-purple-500"></textarea>
+          </div>
+          <div class="flex justify-end gap-2 mt-3">
+            <button (click)="showAddPersonForm.set(false)" class="bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-800 dark:text-white py-2 px-4 rounded-lg transition-colors">Cancel</button>
+            <button (click)="addPerson()" class="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-lg transition-colors">Save</button>
+          </div>
+        </div>
+      }
+
+      @if (people().length === 0) {
+        <p class="text-center text-gray-500 dark:text-gray-400 mt-8">No people added yet. Add someone to get started!</p>
+      } @else {
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          @for (person of people(); track person.id) {
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md hover:shadow-purple-500/20 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 transition-all group">
+              <div class="flex justify-between items-start">
+                <div>
+                  <h3 class="text-xl font-bold text-purple-600 dark:text-purple-300">{{ person.name }}</h3>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">{{ person.relationship }}</p>
+                </div>
+                <button (click)="deletePerson(person.id)" class="text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="fas fa-trash"></i>
+                </button>
+              </div>
+              <p class="mt-2 text-gray-600 dark:text-gray-300 line-clamp-2">{{ person.details }}</p>
+              <button (click)="selectPerson(person)" class="mt-4 w-full bg-purple-500/20 dark:bg-purple-600/50 hover:bg-purple-500/40 dark:hover:bg-purple-600 text-purple-700 dark:text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                Start Coaching
+              </button>
+            </div>
+          }
+        </div>
+      }
+    } @else {
+      <div class="h-full flex flex-col bg-gray-50 dark:bg-gray-800/50 rounded-lg shadow-xl">
+        <div class="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 flex-wrap">
+          <div class="flex items-center">
+            <button (click)="unselectPerson()" class="mr-3 text-purple-500 dark:text-purple-400 hover:text-purple-600 dark:hover:text-purple-300">
+              <i class="fas fa-arrow-left fa-lg"></i>
+            </button>
+            <h2 class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-blue-500">
+              Coaching for: {{ selectedPerson()?.name }}
+            </h2>
+          </div>
+          <div class="flex items-center gap-2">
+              <i class="fas fa-brain text-xs text-gray-400" [class.text-yellow-500]="thinkingMode()"></i>
+              <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" [checked]="thinkingMode()" (change)="toggleThinkingMode()" class="sr-only peer">
+                  <div class="w-11 h-6 bg-gray-300 dark:bg-gray-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-purple-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500 dark:peer-checked:bg-yellow-600"></div>
+              </label>
+              <span class="text-sm font-medium text-gray-600 dark:text-gray-300">Thinking Mode</span>
+          </div>
+        </div>
+
+        <div class="flex-grow p-4 overflow-y-auto space-y-4">
+          @for(message of chatHistory(); track $index) {
+            <div [class]="'flex ' + (message.sender === 'user' ? 'justify-end' : 'justify-start')">
+              <div [class]="'max-w-lg p-3 rounded-2xl ' + (message.sender === 'user' ? 'bg-purple-600 text-white rounded-br-none' : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none shadow-sm')">
+                <p [innerHTML]="message.text"></p>
+              </div>
+            </div>
+          }
+          @if (isLoading()) {
+            <div class="flex justify-start">
+              <div class="max-w-lg p-3 rounded-2xl bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-none">
+                  <div class="flex items-center gap-2">
+                      <i class="fas fa-circle-notch fa-spin text-purple-500 dark:text-purple-400"></i>
+                      <span class="text-sm">Aura is thinking...</span>
+                  </div>
+              </div>
+            </div>
+          }
+        </div>
+
+        <div class="px-4 pb-2">
+          @if (isGeneratingReplies()) {
+            <div class="flex justify-center gap-2 animate-pulse">
+              <div class="h-8 w-24 bg-gray-200 dark:bg-gray-600 rounded-full"></div>
+              <div class="h-8 w-28 bg-gray-200 dark:bg-gray-600 rounded-full"></div>
+              <div class="h-8 w-20 bg-gray-200 dark:bg-gray-600 rounded-full"></div>
+            </div>
+          } @else if (quickReplies().length > 0) {
+            <div class="flex flex-wrap justify-center gap-2">
+              @for(reply of quickReplies(); track reply) {
+                <button (click)="selectQuickReply(reply)" class="px-4 py-1.5 bg-purple-100 dark:bg-gray-700 text-purple-700 dark:text-purple-300 rounded-full text-sm hover:bg-purple-200 dark:hover:bg-gray-600 transition-colors">
+                  {{ reply }}
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+          <form (submit)="sendMessage()" class="flex gap-2">
+            <input [(ngModel)]="currentUserMessage" name="message" type="text" placeholder="Describe the situation..." class="flex-grow bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-full border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500" autocomplete="off">
+            <button type="submit" [disabled]="isLoading() || !currentUserMessage().trim()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold w-12 h-12 rounded-full flex items-center justify-center transition-colors disabled:bg-purple-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed">
+              <i class="fas fa-paper-plane"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+    }
+  } @else {
+    <div class="flex items-center justify-center h-full">
+      <div class="w-full max-w-sm p-8 bg-gray-50 dark:bg-gray-800 rounded-2xl shadow-2xl text-center">
+        <i class="fas fa-lock text-4xl text-purple-500 dark:text-purple-400 mb-4"></i>
+        <h2 class="text-2xl font-bold mb-2">Coach Section Locked</h2>
+        <p class="text-gray-500 dark:text-gray-400 mb-6">Please enter your PIN to continue.</p>
+        
+        <form (submit)="checkPin()">
+          <input 
+            [(ngModel)]="pinInput"
+            name="pin"
+            type="password"
+            placeholder="PIN"
+            maxlength="7"
+            class="w-full text-center text-2xl tracking-[.5em] bg-white dark:bg-gray-700 text-gray-800 dark:text-white p-3 rounded-md border border-gray-300 dark:border-gray-600 focus:ring-purple-500 focus:border-purple-500">
+
+          @if (authError()) {
+            <p class="text-red-500 dark:text-red-400 text-sm mt-2">{{ authError() }}</p>
+          }
+
+          <button type="submit" class="mt-6 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">
+            Unlock
+          </button>
+        </form>
+      </div>
+    </div>
+  }
+</div>

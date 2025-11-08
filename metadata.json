@@ -1,0 +1,7 @@
+{
+  "name": "AURA Personal AI Assistant",
+  "description": "A comprehensive personal assistant app powered by Gemini. Features include a communication coach, location helper, creative suite for image and video generation, a career assistant, and a general chatbot.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
