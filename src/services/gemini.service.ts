@@ -36,6 +36,7 @@ export class GeminiService {
   // FIX: API Key must be read from process.env.API_KEY as per guidelines.
   private readonly AURA_API_KEY = process.env.API_KEY;
   private currentAudio: HTMLAudioElement | null = null;
+  private readonly apiUrl = `${API_BASE_URL}/api`;
 
   constructor() {
     if (!this.AURA_API_KEY) {
@@ -187,18 +188,14 @@ export class GeminiService {
     }
   }
 
-  // For TTS, using the gemini-2.5-flash-preview-tts model
+  // For TTS, using the gemini-2.5-flash-preview-tts model via backend proxy
   async generateSpeech(text: string): Promise<void> {
     this.stopSpeech(); // Stop any currently playing audio
 
-    // This uses a REST endpoint for the preview TTS model, as official SDK support may not be available.
-    // The structure is based on standard Google Cloud API patterns.
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:synthesizeSpeech?key=${this.AURA_API_KEY}`;
-    const body = {
-      "input": { "text": text },
-      "voice": { "languageCode": "en-US" },
-      "audioConfig": { "audioEncoding": "MP3" }
-    };
+    // The frontend now calls its own backend, which will proxy the request to Google's TTS API.
+    // This avoids CORS issues that happen when calling Google's API directly from the browser.
+    const url = `${this.apiUrl}/synthesize-speech`;
+    const body = { text };
     
     try {
       const response = await firstValueFrom(
@@ -223,7 +220,7 @@ export class GeminiService {
       });
 
     } catch (error) {
-      console.error('Gemini TTS Error:', error);
+      console.error('Gemini TTS Error (via backend):', error);
       // Fallback to browser's built-in speech synthesis
       console.warn('Falling back to browser speech synthesis.');
       return new Promise((resolve, reject) => {
