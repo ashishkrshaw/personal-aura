@@ -1,9 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { GeminiService } from '../../services/gemini.service';
+import { GeminiService, CoachChatMessage } from '../../services/gemini.service';
 import { DataService } from '../../services/data.service';
-import type { Chat } from '@google/genai';
 
 export interface Person {
   id: number;
@@ -12,24 +11,20 @@ export interface Person {
   details: string;
 }
 
-interface Message {
-  sender: 'user' | 'aura';
-  text: string;
-}
-
 @Component({
   selector: 'app-people-coach',
+  // FIX: Standalone components are default in v20+, but this component was missing the `standalone: true` property.
   standalone: true,
   imports: [CommonModule, FormsModule],
   templateUrl: './people-coach.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PeopleCoachComponent {
+export class PeopleCoachComponent implements OnInit {
   private geminiService = inject(GeminiService);
   private dataService = inject(DataService);
 
   // Auth State
-  isAuthenticated = signal(false);
+  isAuthenticated = signal(localStorage.getItem('aura-coach-auth') === 'true');
   pinInput = signal('');
   authError = signal<string | null>(null);
   private readonly correctPin = '8254199';
@@ -40,19 +35,17 @@ export class PeopleCoachComponent {
   showAddPersonForm = signal(false);
   newPerson = signal({ name: '', relationship: '', details: '' });
 
-  chatHistory = signal<Message[]>([]);
+  chatHistory = signal<CoachChatMessage[]>([]);
   currentUserMessage = signal('');
   isLoading = signal(false);
   quickReplies = signal<string[]>([]);
   isGeneratingReplies = signal(false);
   thinkingMode = signal(false);
 
-  private activeChat: Chat | null = null;
+  private activeSystemInstruction: string | null = null;
 
-  constructor() {
-    const isAuthenticatedInStorage = localStorage.getItem('aura-coach-auth') === 'true';
-    if (isAuthenticatedInStorage) {
-      this.isAuthenticated.set(true);
+  ngOnInit(): void {
+    if (this.isAuthenticated()) {
       this.loadPeopleData();
     }
   }
@@ -111,20 +104,22 @@ export class PeopleCoachComponent {
     if (this.thinkingMode()) {
         systemInstruction += `\n\nIMPORTANT: You are in "Deep Thinking Mode". Provide a more in-depth, thoughtful, and analytical response. Consider multiple perspectives, long-term consequences, and the psychological aspects of the conversation. Aim for wisdom over a quick answer.`;
     }
-
-    this.activeChat = this.geminiService.startChat(systemInstruction, { thinkingConfig: { thinkingBudget: 0 } });
+    
+    this.activeSystemInstruction = systemInstruction;
   }
 
   unselectPerson() {
     this.selectedPerson.set(null);
-    this.activeChat = null;
+    this.activeSystemInstruction = null;
     this.quickReplies.set([]);
   }
 
   async sendMessage() {
-    if (!this.currentUserMessage().trim() || !this.activeChat) return;
+    if (!this.currentUserMessage().trim() || !this.activeSystemInstruction) return;
 
     const messageText = this.currentUserMessage();
+    const currentHistory = this.chatHistory();
+    
     this.quickReplies.set([]);
     this.isGeneratingReplies.set(false);
     this.chatHistory.update(h => [...h, { sender: 'user', text: messageText }]);
@@ -132,9 +127,9 @@ export class PeopleCoachComponent {
     this.isLoading.set(true);
 
     try {
-      const response = await this.geminiService.sendChatMessage(this.activeChat, messageText);
+      const response = await this.geminiService.sendCoachMessage(this.activeSystemInstruction, currentHistory, messageText);
       this.chatHistory.update(h => [...h, { sender: 'aura', text: response }]);
-      this.generateQuickReplies();
+      // this.generateQuickReplies(); // Quick replies can be re-enabled if a backend endpoint is made
     } catch (error) {
       this.chatHistory.update(h => [...h, { sender: 'aura', text: 'Sorry, I had trouble responding. Please try again.' }]);
     } finally {
@@ -157,15 +152,17 @@ export class PeopleCoachComponent {
     }
   }
 
-  async generateQuickReplies() {
-    if (!this.selectedPerson()) return;
-    this.isGeneratingReplies.set(true);
-    const person = this.selectedPerson()!;
-    const personInfo = `Talking to ${person.name} (${person.relationship}). Details: ${person.details}`;
-    const replies = await this.geminiService.generateQuickReplies(this.chatHistory(), personInfo);
-    this.quickReplies.set(replies);
-    this.isGeneratingReplies.set(false);
-  }
+  // NOTE: Quick replies are disabled for now as they require a separate backend implementation.
+  // async generateQuickReplies() {
+  //   if (!this.selectedPerson()) return;
+  //   this.isGeneratingReplies.set(true);
+  //   const person = this.selectedPerson()!;
+  //   const personInfo = `Talking to ${person.name} (${person.relationship}). Details: ${person.details}`;
+  //   // This would need to be a new backend call
+  //   // const replies = await this.geminiService.generateQuickReplies(this.chatHistory(), personInfo);
+  //   // this.quickReplies.set(replies);
+  //   this.isGeneratingReplies.set(false);
+  // }
 
   selectQuickReply(reply: string) {
     this.currentUserMessage.set(reply);

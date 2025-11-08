@@ -34,8 +34,12 @@
       <div class="flex items-center gap-3">
         <div 
           class="w-2.5 h-2.5 rounded-full"
-          [class]="dataService.isMongoConfigured() ? 'bg-green-400 animate-pulse' : 'bg-yellow-400'"
-          [title]="dataService.isMongoConfigured() ? 'Data synced with MongoDB' : 'Data saved locally on this device'">
+          [class]="{
+            'bg-green-400 animate-pulse': dataService.backendStatus() === 'online',
+            'bg-yellow-400': dataService.backendStatus() === 'checking',
+            'bg-red-500': dataService.backendStatus() === 'offline'
+          }"
+          [title]="'Backend status: ' + dataService.backendStatus()">
         </div>
         <svg width="32" height="32" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
           <defs><radialGradient id="gradHeader" cx="50%" cy="50%" r="50%" fx="30%" fy="30%"><stop offset="0%" stop-color="#E9D5FF"/><stop offset="100%" stop-color="#A855F7"/></radialGradient></defs>
@@ -58,20 +62,11 @@
         @case ('navigate') {
           <app-location-helper />
         }
-        @case ('finance') {
-          <app-finance-manager />
-        }
-        @case ('reminders') {
-          <app-reminders />
-        }
-        @case ('study') {
-          <app-study-buddy />
+        @case ('create') {
+          <app-creative-suite />
         }
         @case ('career') {
           <app-career-assistant />
-        }
-        @case ('create') {
-          <app-creative-suite />
         }
         @case ('chat') {
           <app-chatbot />

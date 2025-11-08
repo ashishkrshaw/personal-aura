@@ -6,9 +6,6 @@ import { LocationHelperComponent } from './components/location-helper/location-h
 import { CreativeSuiteComponent } from './components/creative-suite/creative-suite.component';
 import { CareerAssistantComponent } from './components/career-assistant/career-assistant.component';
 import { ChatbotComponent } from './components/chatbot/chatbot.component';
-import { FinanceManagerComponent } from './components/finance-manager/finance-manager.component';
-import { RemindersComponent } from './components/reminders/reminders.component';
-import { StudyBuddyComponent } from './components/study-buddy/study-buddy.component';
 import { GeminiService } from './services/gemini.service';
 import { AudioService } from './services/audio.service';
 import { ThemeService } from './services/theme.service';
@@ -16,7 +13,7 @@ import { DataService } from './services/data.service';
 import { LoginComponent } from './components/login/login.component';
 import { LiveConversationComponent } from './components/live-conversation/live-conversation.component';
 
-type Tab = 'coach' | 'navigate' | 'create' | 'finance' | 'career' | 'chat' | 'reminders' | 'study' | 'live';
+type Tab = 'coach' | 'navigate' | 'create' | 'career' | 'chat' | 'live';
 
 @Component({
   selector: 'app-root',
@@ -29,9 +26,6 @@ type Tab = 'coach' | 'navigate' | 'create' | 'finance' | 'career' | 'chat' | 're
     CreativeSuiteComponent,
     CareerAssistantComponent,
     ChatbotComponent,
-    FinanceManagerComponent,
-    RemindersComponent,
-    StudyBuddyComponent,
     LoginComponent,
     LiveConversationComponent,
   ],
@@ -41,7 +35,7 @@ export class AppComponent implements OnInit {
   themeService = inject(ThemeService);
   dataService = inject(DataService);
   
-  isAuthenticated = signal(false);
+  isAuthenticated = signal(localStorage.getItem('aura-auth-token') === 'true');
   activeTab = signal<Tab>('coach');
   isInitializing = signal(true);
   showSplash = signal(true);
@@ -49,20 +43,14 @@ export class AppComponent implements OnInit {
   tabs: { id: Tab; icon: string; name: string }[] = [
     { id: 'coach', icon: 'fa-users', name: 'Coach' },
     { id: 'navigate', icon: 'fa-map-location-dot', name: 'Navigate' },
-    { id: 'finance', icon: 'fa-wallet', name: 'Finance' },
-    { id: 'reminders', icon: 'fa-bell', name: 'Reminders' },
-    { id: 'study', icon: 'fa-book-open-reader', name: 'Study' },
-    { id: 'career', icon: 'fa-briefcase', name: 'Career' },
     { id: 'create', icon: 'fa-wand-magic-sparkles', name: 'Create' },
+    { id: 'career', icon: 'fa-briefcase', name: 'Career' },
     { id: 'chat', icon: 'fa-comments', name: 'Chat' },
     { id: 'live', icon: 'fa-headset', name: 'Live' },
   ];
 
   ngOnInit(): void {
-    if (localStorage.getItem('aura-auth-token') === 'true') {
-      this.isAuthenticated.set(true);
-    }
-
+    this.dataService.checkBackendStatus();
     setTimeout(() => {
       this.isInitializing.set(false);
       // If not authenticated, splash screen will be replaced by login, so no need to hide it

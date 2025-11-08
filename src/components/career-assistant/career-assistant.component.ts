@@ -2,7 +2,7 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { GeminiService } from '../../services/gemini.service';
+import { GeminiService, GroundingChunk } from '../../services/gemini.service';
 
 type CareerTab = 'search' | 'roadmap' | 'resume';
 
@@ -48,8 +48,9 @@ export class CareerAssistantComponent {
     this.jobSearchResults.set([]);
     try {
       const response = await this.geminiService.findJobs(this.jobSearchQuery());
-      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-      const jobs: Job[] = chunks.map((chunk: any) => ({
+      // FIX: The service returns a `sources` property directly, not `candidates`.
+      const chunks: GroundingChunk[] = response.sources || [];
+      const jobs: Job[] = chunks.map((chunk: GroundingChunk) => ({
         title: chunk.web?.title || 'Untitled',
         url: chunk.web?.uri || '#'
       }));
@@ -64,7 +65,10 @@ export class CareerAssistantComponent {
     this.isGeneratingRoadmap.set(true);
     this.generatedRoadmap.set('');
     try {
-      const roadmap = await this.geminiService.generateCareerRoadmap(this.roadmapRole());
+      // FIX: Replaced call to non-existent `generateCareerRoadmap` with `generateText` for better code reuse.
+      const prompt = `Create a detailed career roadmap for someone wanting to become a ${this.roadmapRole()}. Include key skills, certifications, and potential career milestones.`;
+      const systemInstruction = 'You are an expert career advisor.';
+      const roadmap = await this.geminiService.generateText(prompt, systemInstruction);
       this.generatedRoadmap.set(roadmap);
     } finally {
       this.isGeneratingRoadmap.set(false);

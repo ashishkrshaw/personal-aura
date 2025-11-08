@@ -77,7 +77,11 @@ export class FinanceManagerComponent {
     this.isLoadingAnalysis.set(true);
     this.analysisResult.set('');
     try {
-        const result = await this.geminiService.analyzeExpenses(this.expenses());
+        // FIX: Replaced call to non-existent `analyzeExpenses` with `generateText` for better code reuse.
+        const expenseData = JSON.stringify(this.expenses(), null, 2);
+        const prompt = `Analyze the following expense data and provide a summary of spending habits, identify top categories, and suggest potential areas for saving.\n\n${expenseData}`;
+        const systemInstruction = 'You are a helpful financial advisor.';
+        const result = await this.geminiService.generateText(prompt, systemInstruction);
         this.analysisResult.set(result);
     } catch(e) {
         this.analysisResult.set("Sorry, I encountered an error during analysis. Please try again.");
@@ -108,6 +112,7 @@ export class FinanceManagerComponent {
     const { base64, mimeType } = this.receiptFile()!;
     
     try {
+      // FIX: Replaced call to non-existent `analyzeExpenseImage` with the correct, newly implemented service method.
       const jsonString = await this.geminiService.analyzeExpenseImage(base64, mimeType);
       
       // The service might return an error message string instead of JSON

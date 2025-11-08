@@ -1,17 +1,9 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, inject, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { GeminiService } from '../../services/gemini.service';
+// FIX: Imported ChatMessage interface to resolve type error.
+import { GeminiService, GroundingChunk, ChatMessage } from '../../services/gemini.service';
 import { AudioService } from '../../services/audio.service';
-import { Chat } from '@google/genai';
-
-// FIX: Updated interface to match the library's type, where properties can be optional.
-interface GroundingChunk {
-  web?: {
-    uri?: string;
-    title?: string;
-  };
-}
 
 interface Message {
   sender: 'user' | 'aura';
@@ -39,19 +31,20 @@ export class ChatbotComponent implements OnDestroy {
   thinkingMode = signal(false);
   useRealTimeData = signal(false);
   
-  private chat!: Chat;
   private currentAudio: HTMLAudioElement | null = null;
   private readonly CHAT_HISTORY_KEY = 'aura-chat-history';
 
   constructor() {
     this.loadChatHistory();
-    this.reinitializeChat();
+    if (this.chatHistory().length === 0) {
+        this.chatHistory.set([{ sender: 'aura', text: "Hello! How can I help you today?" }]);
+    }
     effect(() => {
         this.saveChatHistory();
     });
   }
 
-  private reinitializeChat() {
+  private getSystemInstruction(): string {
      const baseInstruction = `You are AURA, a friendly and helpful general-purpose AI assistant.
     If the user asks you to open an app, website, or perform a search, you MUST respond with a special formatted string.
     - For opening a URL: [AURA_ACTION:OPEN_URL|https://example.com]
@@ -59,34 +52,15 @@ export class ChatbotComponent implements OnDestroy {
     - For opening WhatsApp: [AURA_ACTION:OPEN_URL|https://wa.me/]
     You can also provide a conversational response before the action string. Example: "Sure, searching Google for cute cats for you! [AURA_ACTION:SEARCH|cute cats]".`;
     
-    let finalInstruction = baseInstruction;
     if (this.thinkingMode()) {
-      finalInstruction += `\n\nIMPORTANT: You are in "Deep Thinking Mode". Engage in deeper, more thoughtful conversation. Explore topics thoroughly, provide detailed explanations, and ask insightful follow-up questions.`;
+      return baseInstruction + `\n\nIMPORTANT: You are in "Deep Thinking Mode". Engage in deeper, more thoughtful conversation. Explore topics thoroughly, provide detailed explanations, and ask insightful follow-up questions.`;
     }
-
-    const history = this.chatHistory()
-      .filter(m => m.text) // Don't include empty placeholder messages in history
-      .map(message => ({
-        role: message.sender === 'user' ? 'user' : 'model',
-        parts: [{ text: message.text }]
-      }));
-
-    const config: any = {};
-    if (this.useRealTimeData()) {
-        config.tools = [{ googleSearch: {} }];
-    }
-
-    this.chat = this.geminiService.startChat(finalInstruction, { history, ...config });
-    
-    if (this.chatHistory().length === 0) {
-        this.chatHistory.set([{ sender: 'aura', text: "Hello! How can I help you today?" }]);
-    }
+    return baseInstruction;
   }
 
   clearChatHistory() {
-    this.chatHistory.set([]);
+    this.chatHistory.set([{ sender: 'aura', text: "Hello! How can I help you today?" }]);
     localStorage.removeItem(this.CHAT_HISTORY_KEY);
-    this.reinitializeChat();
   }
 
   toggleLiveMode() {
@@ -105,64 +79,47 @@ export class ChatbotComponent implements OnDestroy {
 
   toggleThinkingMode() {
     this.thinkingMode.update(v => !v);
-    this.reinitializeChat();
   }
   
   toggleRealTimeData() {
     this.useRealTimeData.update(v => !v);
-    this.reinitializeChat();
   }
 
   async sendMessage() {
     if (!this.currentUserMessage().trim()) return;
 
     const messageText = this.currentUserMessage();
+
+    // FIX: Prepare history for API call *before* updating the UI state to prevent sending the same message twice.
+    // FIX: Explicitly typed `geminiHistory` as `ChatMessage[]` to fix type inference error.
+    const geminiHistory: ChatMessage[] = this.chatHistory()
+      .filter(m => m.sender === 'aura' ? m.text : true) // Don't include empty placeholder messages from aura
+      .map(message => ({
+        role: message.sender === 'user' ? 'user' : 'model',
+        parts: [{ text: message.text }]
+      }));
+      
     this.chatHistory.update(h => [...h, { sender: 'user', text: messageText }]);
     this.currentUserMessage.set('');
     this.isLoading.set(true);
     this.stopSpeaking();
 
     try {
-      const stream = await this.geminiService.sendChatMessageStream(this.chat, messageText);
-      this.isLoading.set(false);
+      const response = await this.geminiService.sendChatMessage(this.getSystemInstruction(), geminiHistory, messageText, this.useRealTimeData());
+      
+      const processedText = this.processAuraActions(response.text);
+      const uniqueSources = Array.from(new Map(response.sources.filter(s => s.web?.uri).map(item => [item.web!.uri!, item])).values());
 
-      let fullResponse = '';
-      let sources: GroundingChunk[] = [];
-      this.chatHistory.update(h => [...h, { sender: 'aura', text: '', sources: [] }]);
-
-      for await (const chunk of stream) {
-        fullResponse += chunk.text;
-        const chunkSources = chunk.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-        sources.push(...chunkSources); 
-
-        this.chatHistory.update(h => {
-          const last = h[h.length - 1];
-          if (last.sender === 'aura') {
-            last.text = fullResponse.replace(/\[AURA_ACTION:[^\]]+\]/g, '');
-          }
-          return [...h];
-        });
-      }
-
-      // FIX: Added filter to safely handle optional `web` and `uri` properties.
-      const uniqueSources = Array.from(new Map(sources.filter(s => s.web?.uri).map(item => [item.web!.uri!, item])).values());
-      const processedResponse = this.processAuraActions(fullResponse);
-
-      this.chatHistory.update(h => {
-          const last = h[h.length-1];
-          if(last.sender === 'aura') {
-              last.text = processedResponse;
-              last.sources = uniqueSources;
-          }
-          return [...h];
-      });
+      this.chatHistory.update(h => [...h, { sender: 'aura', text: processedText, sources: uniqueSources }]);
 
       if (this.isLiveMode()) {
-        this.speak(processedResponse);
+        this.speak(processedText);
       }
 
     } catch (error) {
-      this.chatHistory.update(h => [...h, { sender: 'aura', text: 'Sorry, an error occurred. Please try again.' }]);
+      const errorMessage = error instanceof Error ? error.message : 'Sorry, an error occurred. Please try again.';
+      this.chatHistory.update(h => [...h, { sender: 'aura', text: errorMessage }]);
+    } finally {
       this.isLoading.set(false);
     }
   }

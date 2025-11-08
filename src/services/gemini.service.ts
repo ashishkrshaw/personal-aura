@@ -1,225 +1,168 @@
-
 import { Injectable, inject } from '@angular/core';
-// FIX: Removed GenerateContentStreamResponse as it is not an exported member of @google/genai
-import { GoogleGenAI, GenerateContentResponse, Chat, Type } from "@google/genai";
-import { APP_CONFIG, AppConfig } from '../app.config';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import {
+  GoogleGenAI,
+  Type
+} from '@google/genai';
+
+// Interfaces for type consistency across components
+export interface CoachChatMessage {
+  sender: 'user' | 'aura';
+  text: string;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'model';
+  parts: [{ text: string }];
+}
+
+export interface GroundingChunk {
+  web?: {
+    uri?: string;
+    title?: string;
+  };
+}
+
+// Backend URL is sourced from environment variables, with a fallback for local development.
+const API_BASE_URL = process.env.AURA_BACKEND_URL || 'http://baddi.duckdns.org:9091';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class GeminiService {
-  private config = inject<AppConfig>(APP_CONFIG);
-  private ai: GoogleGenAI;
-  private apiKey: string;
+  private http = inject(HttpClient);
+  private genAI: GoogleGenAI;
+  // FIX: API Key must be read from process.env.API_KEY as per guidelines.
+  private readonly AURA_API_KEY = process.env.API_KEY;
 
   constructor() {
-    // Get the API key from the injected configuration.
-    // This is the definitive fix for the blank screen race condition on deployment.
-    this.apiKey = this.config.API_KEY;
-
-    if (!this.apiKey || this.apiKey === 'YOUR_GEMINI_API_KEY_PLACEHOLDER') {
-      console.error("API_KEY not found or not set in runtime configuration.");
-      // In a real app, you might want to throw an error or handle this differently.
+    if (!this.AURA_API_KEY) {
+      console.error('API_KEY environment variable not set.');
     }
-    this.ai = new GoogleGenAI({ apiKey: this.apiKey! });
+    this.genAI = new GoogleGenAI({ apiKey: this.AURA_API_KEY! });
   }
 
-  private handleError(error: unknown, context: string): string {
-    console.error(`Error in ${context}:`, error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    if (errorMessage.includes('429') || errorMessage.toLowerCase().includes('rate limit')) {
-      return 'AURA is very popular right now! Please wait a moment and try again.';
-    }
-    if (errorMessage.toLowerCase().includes('api key not valid')) {
-        return 'There seems to be an issue with the API key configuration. Please check your deployment variables.';
-    }
-    return `Sorry, I encountered an error while ${context}. Please try again.`;
-  }
-
-  async generateText(prompt: string, systemInstruction?: string): Promise<string> {
+  // Generic text generation
+  async generateText(prompt: string, systemInstruction: string): Promise<string> {
     try {
-      const response = await this.ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
+      const response = await this.genAI.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           systemInstruction: systemInstruction,
         },
       });
       return response.text;
     } catch (error) {
-      return this.handleError(error, 'generating text');
+      console.error('Error generating text:', error);
+      return this.formatError(error);
     }
   }
 
-  async getStandardDirections(from: string, to: string): Promise<GenerateContentResponse> {
-    const prompt = `Provide step-by-step driving directions from ${from} to ${to}.`;
-    return this.ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-            tools: [{ googleSearch: {} }],
-        },
-    });
-  }
+  // For People Coach
+  async sendCoachMessage(
+    systemInstruction: string,
+    history: CoachChatMessage[],
+    message: string
+  ): Promise<string> {
+    const contents = history.map((msg) => ({
+      role: msg.sender === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.text }],
+    }));
+    contents.push({ role: 'user', parts: [{ text: message }] });
 
-  async getHumanDirections(from: string, to: string, mode: string): Promise<string> {
-    const prompt = `Provide directions from ${from} to ${to} via ${mode}.`;
-    const systemInstruction = `You are a friendly, local guide from the Giridih, Jharkhand area in India. You are giving directions to a friend. Speak colloquially, using Hindi words for directions like 'daya' (right) and 'baya' (left) where it feels natural. Mention local landmarks, even small ones like a specific tea stall, a large tree, or a uniquely colored building. Make the directions feel very personal and human, not like a machine. Be warm and encouraging.`;
-    
-    return this.generateText(prompt, systemInstruction);
-  }
-
-  async findJobs(query: string): Promise<GenerateContentResponse> {
-      return this.ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: `Find recent job postings related to: ${query}. List the job title, company, and a link to the posting.`,
-          config: {
-              tools: [{ googleSearch: {} }],
-          },
-      });
-  }
-  
-  async generateCareerRoadmap(role: string): Promise<string> {
     try {
-        const prompt = `Create a detailed career roadmap for someone wanting to become a ${role}. Include skills to learn, certifications, project ideas, and career milestones.`;
-        const response = await this.ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-        });
-        return response.text;
-    } catch (error) {
-        return this.handleError(error, `generating a career roadmap for ${role}`);
-    }
-  }
-
-  async generateImage(prompt: string, aspectRatio: string): Promise<string | null> {
-    try {
-      const response = await this.ai.models.generateImages({
-        model: 'imagen-3.0-generate-002',
-        prompt: prompt,
-        config: {
-          numberOfImages: 1,
-          outputMimeType: 'image/jpeg',
-          aspectRatio: aspectRatio as "1:1" | "3:4" | "4:3" | "9:16" | "16:9",
-        },
-      });
-      if (response.generatedImages && response.generatedImages.length > 0) {
-        return `data:image/jpeg;base64,${response.generatedImages[0].image.imageBytes}`;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error generating image:', error);
-      return null;
-    }
-  }
-  
-  async generateVideoFromPrompt(prompt: string, aspectRatio: string): Promise<any> {
-    let operation = await this.ai.models.generateVideos({
-        model: 'veo-2.0-generate-001',
-        prompt: prompt,
-        config: {
-            numberOfVideos: 1,
-            aspectRatio: aspectRatio as "16:9" | "9:16"
-        }
-    });
-    return this.pollVideoOperation(operation);
-  }
-
-  async generateVideoFromImage(prompt: string, imageBase64: string, mimeType: string, aspectRatio: string): Promise<any> {
-    let operation = await this.ai.models.generateVideos({
-        model: 'veo-2.0-generate-001',
-        prompt: prompt,
-        image: {
-            imageBytes: imageBase64,
-            mimeType: mimeType
-        },
-        config: {
-            numberOfVideos: 1,
-            aspectRatio: aspectRatio as "16:9" | "9:16"
-        }
-    });
-    return this.pollVideoOperation(operation);
-  }
-
-  private async pollVideoOperation(operation: any): Promise<any> {
-      while (!operation.done) {
-          await new Promise(resolve => setTimeout(resolve, 10000)); // Poll every 10 seconds
-          operation = await this.ai.operations.getVideosOperation({ operation: operation });
-      }
-      const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-      if (downloadLink) {
-        return `${downloadLink}&key=${this.apiKey}`;
-      }
-      return null;
-  }
-  
-  startChat(systemInstruction: string, config?: object): Chat {
-    return this.ai.chats.create({
+      const response = await this.genAI.models.generateContent({
         model: 'gemini-2.5-flash',
-        config: { systemInstruction, ...config }
-    });
-  }
-
-  startLiveChat(): Chat {
-    const systemInstruction = `You are AURA, a voice-first AI assistant. Be conversational and keep your responses concise and to the point, as if you were speaking. Do not use markdown, lists, or any special formatting.`;
-    return this.ai.chats.create({
-        model: 'gemini-2.5-flash-lite',
-        config: { 
+        contents,
+        config: {
           systemInstruction,
-          thinkingConfig: { thinkingBudget: 0 } 
-        }
-    });
-  }
-  
-  async sendChatMessage(chat: Chat, message: string): Promise<string> {
-    try {
-      const response = await chat.sendMessage({ message });
+        },
+      });
       return response.text;
     } catch (error) {
-      return this.handleError(error, 'sending a chat message');
+      console.error('Error in sendCoachMessage:', error);
+      return this.formatError(error);
     }
   }
 
-  // FIX: Removed explicit return type `Promise<GenerateContentStreamResponse>` and let TypeScript infer it, as the type does not exist.
-  async sendChatMessageStream(chat: Chat, message: string) {
-    return chat.sendMessageStream({ message });
-  }
-
-  async generateQuickReplies(chatHistory: {sender: string, text: string}[], personInfo: string): Promise<string[]> {
-    const history = chatHistory.map(m => `${m.sender}: ${m.text}`).join('\n');
-    const prompt = `Based on the last message from Aura (the coach), suggest 3 very short, distinct, and actionable replies for me (the user). My goal is to maintain a positive relationship. The context is: ${personInfo}.
+  // For Location Helper
+  async getDirections(
+    source: string,
+    destination: string,
+    travelMode: string,
+    style: 'human' | 'default'
+  ): Promise<{ text: string }> {
+    const humanStylePrompt = `Provide friendly, conversational, and landmark-based ${travelMode} directions from ${source} to ${destination}. Be like a helpful local guide.`;
+    const defaultStylePrompt = `Provide standard, step-by-step ${travelMode} directions from ${source} to ${destination}. The output should be a list of steps. Include a summary of distance and estimated time.`;
     
-    Conversation History:
-    ${history}
-    
-    Return ONLY a JSON array of 3 strings. Example: ["That makes sense.", "How do I start?", "What's another option?"]`;
+    const prompt = style === 'human' ? humanStylePrompt : defaultStylePrompt;
 
     try {
-      const response = await this.ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING }
-          },
-          thinkingConfig: { thinkingBudget: 0 }
-        },
+      const response = await this.genAI.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
       });
-      const jsonStr = response.text.trim();
-      if (jsonStr.startsWith('[') && jsonStr.endsWith(']')) {
-        return JSON.parse(jsonStr);
-      }
-      return [];
+      return { text: response.text };
     } catch (error) {
-      console.error('Error generating quick replies:', error);
-      return [];
+      console.error('Error getting directions:', error);
+      return { text: this.formatError(error) };
     }
   }
-  
-   async transcribeAudio(audioBase64: string, mimeType: string): Promise<string> {
+
+  // For Career Assistant (Job Search)
+  async findJobs(query: string): Promise<{ sources: GroundingChunk[] }> {
+    try {
+      const prompt = `Find job listings for "${query}". Provide links to the job postings.`;
+      const response = await this.genAI.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+            tools: [{googleSearch: {}}]
+        }
+      });
+      const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      const sources: GroundingChunk[] = groundingChunks.map((chunk: any) => ({ web: chunk.web }));
+      return { sources };
+    } catch (error) {
+      console.error('Error finding jobs:', error);
+      return { sources: [] };
+    }
+  }
+
+  // For Chatbot
+  async sendChatMessage(
+    systemInstruction: string,
+    history: ChatMessage[],
+    message: string,
+    useRealTimeData: boolean
+  ): Promise<{ text: string; sources: GroundingChunk[] }> {
+    const contents = [...history, { role: 'user', parts: [{ text: message }] }];
+
+    try {
+      const response = await this.genAI.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents,
+        config: {
+            systemInstruction,
+            ...(useRealTimeData && { tools: [{googleSearch: {}}] })
+        }
+      });
+      
+      const text = response.text;
+      const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+      const sources: GroundingChunk[] = groundingChunks.map((chunk: any) => ({ web: chunk.web }));
+
+      return { text, sources };
+    } catch (error) {
+      console.error('Error in sendChatMessage:', error);
+      return { text: this.formatError(error), sources: [] };
+    }
+  }
+
+  // For audio transcription
+  async transcribeAudio(audioBase64: string, mimeType: string): Promise<string> {
     try {
         const audioPart = {
             inlineData: {
@@ -227,111 +170,136 @@ export class GeminiService {
                 mimeType: mimeType
             }
         };
-        const response = await this.ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: { parts: [audioPart, {text: "Transcribe this audio."}] },
-        });
-        return response.text;
-    } catch(error) {
-        return this.handleError(error, 'transcribing audio');
-    }
-  }
-
-  async analyzeExpenses(expenses: any[]): Promise<string> {
-    const prompt = `You are a personal finance expert. Analyze the following list of expenses. Provide a brief summary of spending by category, identify the top 2-3 spending areas, and offer two practical, actionable tips for better budget management or potential savings. Be encouraging and supportive. The currency is not specified, so focus on percentages, habits, and general financial advice.
-    
-    Expenses:
-    ${JSON.stringify(expenses, null, 2)}`;
-    
-    return this.generateText(prompt, 'You are a helpful and non-judgmental financial coach.');
-  }
-
-  async analyzeExpenseImage(imageBase64: string, mimeType: string): Promise<string> {
-    try {
-        const imagePart = {
-            inlineData: {
-                data: imageBase64,
-                mimeType: mimeType
-            }
-        };
-        const textPart = {
-            text: "Analyze this receipt image. Extract the vendor or store name, the total amount, and the transaction date. Respond ONLY with a JSON object with 'description', 'amount', and 'date' (in YYYY-MM-DD format) keys. If a value is unclear, set it to null."
+        const promptPart = {
+            text: "Transcribe the following audio recording."
         };
 
-        const response = await this.ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: { parts: [imagePart, textPart] },
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        description: { type: Type.STRING, description: "Vendor or store name" },
-                        amount: { type: Type.NUMBER, description: "Total amount of the expense" },
-                        date: { type: Type.STRING, description: "Date of the transaction in YYYY-MM-DD format" }
-                    },
-                    required: ["description", "amount", "date"]
-                }
-            }
+        const response = await this.genAI.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: { parts: [promptPart, audioPart] },
         });
+
         return response.text;
     } catch (error) {
-        return this.handleError(error, 'analyzing expense image');
+        console.error("Error transcribing audio:", error);
+        return `Error during transcription: ${this.formatError(error)}`;
     }
   }
 
-  async getStudyAssistance(context: string, query: string, useGoogleSearch: boolean): Promise<GenerateContentResponse> {
-    const prompt = `Based on the following study material, please answer this question: "${query}"\n\n--- STUDY MATERIAL ---\n${context}`;
-    const systemInstruction = "You are an expert study buddy and academic assistant. Your goal is to help the user understand their study material deeply. Explain concepts clearly, concisely, and accurately. Be encouraging and supportive.";
-    
-    const config: any = {
-      systemInstruction,
+  // For TTS, using a hypothetical backend endpoint
+  async generateSpeech(text: string): Promise<string | null> {
+    try {
+      const response = await firstValueFrom(
+        this.http.post<{ audioContent: string }>(`${API_BASE_URL}/api/tts`, { text })
+      );
+      return response.audioContent;
+    } catch (error) {
+      console.error('Error generating speech:', error);
+      return null;
+    }
+  }
+
+  // For Finance Manager (Receipt analysis)
+  async analyzeExpenseImage(imageB64: string, mimeType: string): Promise<string> {
+    const imagePart = {
+      inlineData: {
+        data: imageB64,
+        mimeType: mimeType,
+      },
+    };
+    const promptPart = {
+      text: "Analyze this receipt image and extract the total amount, date, and a brief description or store name. Return the result as a JSON object with keys: 'amount', 'date' (in YYYY-MM-DD format), and 'description'. If a value cannot be found, set it to null.",
     };
 
-    if (useGoogleSearch) {
-      config.tools = [{ googleSearch: {} }];
-    }
-
     try {
-        return this.ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config,
-        });
-    } catch (error) {
-        console.error('Error in getStudyAssistance:', error);
-        const errorMessage = this.handleError(error, `getting study assistance for your query`);
-        return {
-            text: errorMessage,
-            candidates: [],
-        } as unknown as GenerateContentResponse;
-    }
-  }
-
-  async generateScenarios(context: string): Promise<string> {
-    const prompt = `Based on the provided study material, generate 3 distinct, practical scenarios or case studies that would help test understanding of the key concepts. Format them clearly with headings for each scenario.\n\n--- STUDY MATERIAL ---\n${context}`;
-    const systemInstruction = "You are a creative and insightful academic assistant specializing in creating practical application scenarios from theoretical text. Help the user apply their knowledge.";
-
-    return this.generateText(prompt, systemInstruction);
-  }
-
-  async generateSpeech(text: string): Promise<string | null> {
-    if (!text.trim()) return null;
-    try {
-      const response = await this.ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: text,
+      const response = await this.genAI.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [imagePart, promptPart] },
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              amount: { type: Type.NUMBER },
+              date: { type: Type.STRING, description: 'Date in YYYY-MM-DD format' },
+              description: { type: Type.STRING },
+            },
+            required: ['amount', 'date', 'description']
+          }
+        }
       });
+      return response.text;
+    } catch (error) {
+      console.error('Error analyzing expense image:', error);
+      return this.formatError(error);
+    }
+  }
 
-      const part = response.candidates?.[0]?.content?.parts?.[0];
-      if (part && 'inlineData' in part && part.inlineData.mimeType.startsWith('audio/')) {
-        return part.inlineData.data;
+  // For Live Conversation
+  async sendLiveChatMessage(history: ChatMessage[], audioBase64: string, audioMimeType: string): Promise<string> {
+    try {
+        const audioPart = {
+            inlineData: {
+                data: audioBase64,
+                mimeType: audioMimeType
+            }
+        };
+
+        const contents = [...history, { role: 'user', parts: [audioPart] }];
+
+        const response = await this.genAI.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: contents,
+          config: {
+            systemInstruction: 'You are AURA, having a live, spoken conversation. Be concise and natural.',
+          },
+        });
+        return response.text;
+
+    } catch (error) {
+        console.error("Error in live chat:", error);
+        return this.formatError(error);
+    }
+  }
+  
+  // For Creative Suite (Image generation)
+  async generateImage(prompt: string, aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4'): Promise<string | null> {
+    try {
+      const response = await this.genAI.models.generateImages({
+        model: 'imagen-3.0-generate-002',
+        prompt: prompt,
+        config: {
+          numberOfImages: 1,
+          outputMimeType: 'image/jpeg',
+          aspectRatio: aspectRatio,
+        }
+      });
+      if (response.generatedImages && response.generatedImages.length > 0) {
+        return response.generatedImages[0].image.imageBytes;
       }
-      console.warn('TTS response did not contain audio data.', response);
       return null;
     } catch (error) {
-      this.handleError(error, 'generating speech');
-      return null;
+      console.error('Error generating image:', error);
+      // The GeminiService should return the error message string, not null, for the component to display
+      return this.formatError(error);
     }
+  }
+
+  private formatError(error: any): string {
+    let message = 'An unknown error occurred.';
+    if (error instanceof Error) {
+        message = error.message;
+    } else if (typeof error === 'string') {
+        message = error;
+    } else if (error && typeof error.message === 'string') {
+        message = error.message;
+    }
+    
+    // Check for rate limiting errors
+    if (message.includes('429') || message.toLowerCase().includes('resource has been exhausted')) {
+        return 'AURA is very popular right now! Please try again in a moment.';
+    }
+
+    return `Sorry, an error occurred: ${message}`;
   }
 }

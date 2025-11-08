@@ -71,13 +71,14 @@ export class LocationHelperComponent {
     this.directions.set(null);
 
     try {
-      if (this.responseStyle() === 'Human') {
-          const responseText = await this.geminiService.getHumanDirections(this.sourceLocation(), this.destinationLocation(), this.travelMode());
-          this.directions.set({ summary: 'Your friendly guide says...', steps: [responseText], isHuman: true });
+      // FIX: Replaced calls to non-existent `getHumanDirections` and `getStandardDirections` with a single call to the `getDirections` service method.
+      const style = this.responseStyle();
+      const response = await this.geminiService.getDirections(this.sourceLocation(), this.destinationLocation(), this.travelMode(), style === 'Human' ? 'human' : 'default');
+
+      if (style === 'Human') {
+          this.directions.set({ summary: 'Your friendly guide says...', steps: [response.text], isHuman: true });
       } else {
-          const response = await this.geminiService.getStandardDirections(this.sourceLocation(), this.destinationLocation());
-          const responseText = response.text;
-          const parsedDirections = this.parseDirections(responseText);
+          const parsedDirections = this.parseDirections(response.text);
           this.directions.set({ ...parsedDirections, isHuman: false });
       }
 

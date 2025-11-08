@@ -1,8 +1,6 @@
-
-import { ChangeDetectionStrategy, Component, output, signal, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { APP_CONFIG, AppConfig } from '../../app.config';
 
 @Component({
   selector: 'app-login',
@@ -13,21 +11,16 @@ import { APP_CONFIG, AppConfig } from '../../app.config';
 })
 export class LoginComponent {
   loginSuccess = output<void>();
-  private config = inject<AppConfig>(APP_CONFIG);
 
   username = signal('');
   password = signal('');
   error = signal<string | null>(null);
   isLoading = signal(false);
 
-  private correctUsername: string;
-  private correctPassword: string;
-
-  constructor() {
-    // Fetch credentials from the injected configuration to avoid race conditions.
-    this.correctUsername = this.config.AURA_USERNAME || 'aura';
-    this.correctPassword = this.config.AURA_PASSWORD || 'password';
-  }
+  // Fetch credentials from environment variables
+  // In a real app, these should be securely managed.
+  private correctUsername = process.env.AURA_USERNAME || 'aura';
+  private correctPassword = process.env.AURA_PASSWORD || 'password';
 
   login() {
     this.isLoading.set(true);

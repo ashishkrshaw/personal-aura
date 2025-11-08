@@ -1,8 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { GeminiService } from '../../services/gemini.service';
+import { GeminiService, ChatMessage } from '../../services/gemini.service';
 import { AudioService } from '../../services/audio.service';
-import { Chat } from '@google/genai';
 
 type ConversationState = 'idle' | 'listening' | 'processing' | 'speaking';
 interface TranscriptLine {
@@ -17,103 +16,84 @@ interface TranscriptLine {
   templateUrl: './live-conversation.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class LiveConversationComponent implements OnInit, OnDestroy {
+export class LiveConversationComponent implements OnDestroy {
   geminiService = inject(GeminiService);
   audioService = inject(AudioService);
 
   conversationState = signal<ConversationState>('idle');
   transcript = signal<TranscriptLine[]>([]);
   
-  private chat!: Chat;
+  private chatHistory: ChatMessage[] = [];
   private currentAudio: HTMLAudioElement | null = null;
+  private isProcessingAudio = false;
   
   statusMessages: Record<ConversationState, string> = {
-    idle: 'Tap the microphone to start speaking',
+    idle: 'Tap the microphone to start the conversation',
     listening: 'Listening...',
     processing: 'AURA is thinking...',
     speaking: 'AURA is speaking...'
   };
 
-  ngOnInit() {
-    this.chat = this.geminiService.startLiveChat();
-  }
-
-  async toggleConversation() {
-    switch (this.conversationState()) {
-      case 'idle':
-        this.startListening();
-        break;
-      case 'listening':
-        await this.stopListeningAndProcess();
-        break;
-      case 'processing':
-      case 'speaking':
-        this.stopEverything();
-        break;
+  toggleConversation() {
+    if (this.conversationState() === 'idle') {
+      this.startConversationLoop();
+    } else {
+      this.stopConversationLoop();
     }
   }
-
-  private startListening() {
-    this.stopSpeaking();
-    this.conversationState.set('listening');
-    this.audioService.startRecording();
+  
+  private startConversationLoop() {
+    this.transcript.set([]);
+    this.chatHistory = [];
+    this.listen();
   }
 
-  private async stopListeningAndProcess() {
-    if (!this.audioService.isRecording()) return;
+  private listen() {
+    if (this.conversationState() === 'idle' || this.conversationState() === 'speaking') {
+      this.conversationState.set('listening');
+      this.audioService.startRecording(() => this.processAudio());
+    }
+  }
+  
+  private async processAudio() {
+    if (!this.audioService.isRecording() || this.isProcessingAudio) return;
     
+    this.isProcessingAudio = true;
     this.conversationState.set('processing');
+
     try {
       const audioData = await this.audioService.stopRecording();
-      const transcribedText = await this.geminiService.transcribeAudio(audioData.base64, audioData.mimeType);
+      
+      this.transcript.update(t => [...t, { speaker: 'user', text: '(You spoke to AURA)' }]);
+      
+      const responseText = await this.geminiService.sendLiveChatMessage(this.chatHistory, audioData.base64, audioData.mimeType);
 
-      if (transcribedText && !transcribedText.toLowerCase().includes('error')) {
-        this.transcript.update(t => [...t, { speaker: 'user', text: transcribedText }]);
-        await this.getAuraResponse(transcribedText);
-      } else {
-        // Handle transcription error or empty audio
-        this.conversationState.set('idle');
-      }
+      // Since we don't get the user's transcribed text back, we can't accurately add it to the history.
+      // We will add Aura's response to continue the context for the next turn.
+      this.chatHistory.push({ role: 'model', parts: [{ text: responseText }]});
+
+      this.transcript.update(t => [...t, { speaker: 'aura', text: responseText }]);
+
+      await this.speak(responseText);
+
     } catch (e) {
       console.error("Error processing audio:", e);
-      this.conversationState.set('idle');
-    }
-  }
-
-  private async getAuraResponse(userMessage: string) {
-    try {
-      this.conversationState.set('speaking');
-      const stream = await this.geminiService.sendChatMessageStream(this.chat, userMessage);
-      
-      let fullResponse = '';
-      this.transcript.update(t => [...t, { speaker: 'aura', text: '' }]);
-      
-      for await (const chunk of stream) {
-        fullResponse += chunk.text;
-        this.transcript.update(t => {
-          const last = t[t.length - 1];
-          last.text = fullResponse;
-          return [...t];
-        });
-      }
-      
-      this.speak(fullResponse);
-      
-    } catch (error) {
-      console.error("Error getting response from Aura:", error);
-      this.transcript.update(t => [...t, { speaker: 'aura', text: 'Sorry, I had a problem responding.' }]);
-      this.conversationState.set('idle');
+      const errorMessage = e instanceof Error ? e.message : 'Sorry, I had trouble understanding that.';
+      this.transcript.update(t => [...t, { speaker: 'aura', text: errorMessage }]);
+      this.stopConversationLoop();
+    } finally {
+      this.isProcessingAudio = false;
     }
   }
   
   private async speak(text: string) {
     if (!text) {
-      if (this.conversationState() === 'speaking') {
-        this.conversationState.set('idle');
-      }
+      this.listen(); // If Aura has nothing to say, go back to listening
       return;
     }
-    this.stopSpeaking();
+    
+    this.conversationState.set('speaking');
+    this.stopSpeaking(); // Ensure no prior audio is playing
 
     const audioBase64 = await this.geminiService.generateSpeech(text);
     if (audioBase64) {
@@ -121,22 +101,22 @@ export class LiveConversationComponent implements OnInit, OnDestroy {
       this.currentAudio = new Audio(audioSrc);
       
       this.currentAudio.onended = () => {
-        if (this.conversationState() === 'speaking') {
-          this.conversationState.set('idle');
-        }
         this.currentAudio = null;
+        if (this.conversationState() !== 'idle') {
+          this.listen(); // Continue the conversation loop
+        }
       };
       
       this.currentAudio.play().catch(e => {
         console.error("Error playing audio:", e);
-        if (this.conversationState() === 'speaking') {
-          this.conversationState.set('idle');
+        if (this.conversationState() !== 'idle') {
+          this.listen(); // Still try to continue the loop
         }
       });
     } else {
-      // If speech generation fails, go back to idle.
-      if (this.conversationState() === 'speaking') {
-        this.conversationState.set('idle');
+      console.warn("TTS generation failed.");
+      if (this.conversationState() !== 'idle') {
+          this.listen(); // Continue loop even if TTS fails
       }
     }
   }
@@ -144,21 +124,21 @@ export class LiveConversationComponent implements OnInit, OnDestroy {
   private stopSpeaking() {
     if (this.currentAudio) {
       this.currentAudio.pause();
-      this.currentAudio.currentTime = 0;
       this.currentAudio.onended = null;
       this.currentAudio = null;
     }
   }
   
-  private stopEverything() {
+  private stopConversationLoop() {
     if (this.audioService.isRecording()) {
         this.audioService.stopRecording();
     }
     this.stopSpeaking();
+    this.isProcessingAudio = false;
     this.conversationState.set('idle');
   }
 
   ngOnDestroy(): void {
-    this.stopEverything();
+    this.stopConversationLoop();
   }
 }

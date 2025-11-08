@@ -1,15 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { GeminiService } from '../../services/gemini.service';
-
-// FIX: Updated interface to match the library's type, where properties can be optional.
-interface GroundingChunk {
-  web?: {
-    uri?: string;
-    title?: string;
-  };
-}
+// FIX: Import GroundingChunk from the service to ensure type consistency.
+import { GeminiService, GroundingChunk } from '../../services/gemini.service';
 
 @Component({
   selector: 'app-study-buddy',
@@ -50,10 +43,10 @@ export class StudyBuddyComponent {
     this.response.set({ text: '', sources: [] });
 
     try {
-      const result = await this.geminiService.getStudyAssistance(this.studyMaterial(), this.userQuery(), this.useRealTimeData());
-      const text = result.text;
-      const sources = result.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-      this.response.set({ text, sources });
+      // FIX: Replaced call to non-existent `getStudyAssistance` with `sendChatMessage` for better code reuse.
+      const systemInstruction = `You are a helpful study buddy. The user has provided the following study material. Use it to answer their questions. If you use external information, you must cite your sources.\n\n---STUDY MATERIAL---\n${this.studyMaterial()}`;
+      const result = await this.geminiService.sendChatMessage(systemInstruction, [], this.userQuery(), this.useRealTimeData());
+      this.response.set(result);
     } catch (e) {
       console.error('Error getting study help:', e);
       this.error.set('An error occurred while getting assistance. Please try again.');
@@ -73,7 +66,10 @@ export class StudyBuddyComponent {
     this.userQuery.set('Generate 3 practical scenarios based on the material.'); // Update query for context
 
     try {
-      const resultText = await this.geminiService.generateScenarios(this.studyMaterial());
+      // FIX: Replaced call to non-existent `generateScenarios` with `generateText` for better code reuse.
+      const prompt = `Based on the following study material, generate 3 practical scenarios or problems that a student could solve to test their understanding.\n\n---STUDY MATERIAL---\n${this.studyMaterial()}`;
+      const systemInstruction = 'You are an educational content creator.';
+      const resultText = await this.geminiService.generateText(prompt, systemInstruction);
       this.response.set({ text: resultText, sources: [] });
     } catch (e) {
       console.error('Error generating scenarios:', e);

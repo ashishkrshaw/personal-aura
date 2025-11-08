@@ -1,9 +1,7 @@
-
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
-import { AppConfig, APP_CONFIG } from '../app.config';
+import { Observable, of, timer } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 // Data models
 export interface Person {
@@ -26,98 +24,70 @@ export interface Reminder {
   notified: boolean;
 }
 
+// Backend URL is sourced from environment variables, with a fallback for local development.
+const API_BASE_URL = process.env.AURA_BACKEND_URL || 'http://baddi.duckdns.org:9091';
+
 @Injectable({
   providedIn: 'root'
 })
 export class DataService {
   private http = inject(HttpClient);
-  private config = inject<AppConfig>(APP_CONFIG);
-  private apiUrl: string;
+  private apiUrl = `${API_BASE_URL}/api`;
 
-  isMongoConfigured = signal(false);
+  backendStatus = signal<'checking' | 'online' | 'offline'>('checking');
 
-  constructor() {
-    // Read config via dependency injection.
-    // This is the definitive fix for the blank screen race condition on deployment.
-    const backendUrl = this.config.AURA_BACKEND_URL;
-    const mongoUri = this.config.MONGO_URI;
-
-    this.apiUrl = `${backendUrl || 'http://localhost:8082'}/api`;
-    this.isMongoConfigured.set(!!mongoUri);
+  checkBackendStatus() {
+    this.http.get<{ status: string }>(`${this.apiUrl}/health`).pipe(
+      map(() => 'online' as const),
+      catchError(() => of('offline' as const))
+    ).subscribe(status => {
+      this.backendStatus.set(status);
+    });
   }
 
   // --- People Data ---
   getPeople(): Observable<Person[]> {
-    if (this.isMongoConfigured()) {
-      return this.http.get<Person[]>(`${this.apiUrl}/people`).pipe(
-        catchError(this.handleError<Person[]>('getPeople', []))
-      );
-    } else {
-      const savedPeople = localStorage.getItem('aura-people');
-      return of(savedPeople ? JSON.parse(savedPeople) : []);
-    }
+    return this.http.get<Person[]>(`${this.apiUrl}/people`).pipe(
+      catchError(this.handleError<Person[]>('getPeople', []))
+    );
   }
 
   savePeople(people: Person[]): Observable<Person[]> {
-    if (this.isMongoConfigured()) {
-      return this.http.post<Person[]>(`${this.apiUrl}/people`, people).pipe(
-        catchError(this.handleError<Person[]>('savePeople', []))
-      );
-    } else {
-      localStorage.setItem('aura-people', JSON.stringify(people));
-      return of(people);
-    }
+    return this.http.post<Person[]>(`${this.apiUrl}/people`, people).pipe(
+      catchError(this.handleError<Person[]>('savePeople', []))
+    );
   }
 
   // --- Finance Data (Expenses) ---
   getExpenses(): Observable<Expense[]> {
-    if (this.isMongoConfigured()) {
-      return this.http.get<Expense[]>(`${this.apiUrl}/expenses`).pipe(
-        catchError(this.handleError<Expense[]>('getExpenses', []))
-      );
-    } else {
-      const savedExpenses = localStorage.getItem('aura-expenses');
-      return of(savedExpenses ? JSON.parse(savedExpenses) : []);
-    }
+    return this.http.get<Expense[]>(`${this.apiUrl}/expenses`).pipe(
+      catchError(this.handleError<Expense[]>('getExpenses', []))
+    );
   }
 
   saveExpenses(expenses: Expense[]): Observable<Expense[]> {
-    if (this.isMongoConfigured()) {
-      return this.http.post<Expense[]>(`${this.apiUrl}/expenses`, expenses).pipe(
-        catchError(this.handleError<Expense[]>('saveExpenses', []))
-      );
-    } else {
-      localStorage.setItem('aura-expenses', JSON.stringify(expenses));
-      return of(expenses);
-    }
+    return this.http.post<Expense[]>(`${this.apiUrl}/expenses`, expenses).pipe(
+      catchError(this.handleError<Expense[]>('saveExpenses', []))
+    );
   }
 
   // --- Reminders Data ---
   getReminders(): Observable<Reminder[]> {
-    if (this.isMongoConfigured()) {
-      return this.http.get<Reminder[]>(`${this.apiUrl}/reminders`).pipe(
-        catchError(this.handleError<Reminder[]>('getReminders', []))
-      );
-    } else {
-      const savedReminders = localStorage.getItem('aura-reminders');
-      return of(savedReminders ? JSON.parse(savedReminders) : []);
-    }
+    return this.http.get<Reminder[]>(`${this.apiUrl}/reminders`).pipe(
+      catchError(this.handleError<Reminder[]>('getReminders', []))
+    );
   }
 
   saveReminders(reminders: Reminder[]): Observable<Reminder[]> {
-    if (this.isMongoConfigured()) {
-      return this.http.post<Reminder[]>(`${this.apiUrl}/reminders`, reminders).pipe(
-        catchError(this.handleError<Reminder[]>('saveReminders', []))
-      );
-    } else {
-      localStorage.setItem('aura-reminders', JSON.stringify(reminders));
-      return of(reminders);
-    }
+    return this.http.post<Reminder[]>(`${this.apiUrl}/reminders`, reminders).pipe(
+      catchError(this.handleError<Reminder[]>('saveReminders', []))
+    );
   }
 
   private handleError<T>(operation = 'operation', result?: T) {
     return (error: any): Observable<T> => {
       console.error(`${operation} failed:`, error);
+      this.backendStatus.set('offline');
       // Let the app keep running by returning an empty result.
       return of(result as T);
     };
